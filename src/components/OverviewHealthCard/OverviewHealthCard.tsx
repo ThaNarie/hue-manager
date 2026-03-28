@@ -1,72 +1,59 @@
-import { useEffect, useState } from "react";
 import { Activity, DatabaseBackup } from "lucide-react";
-import { parseOverviewHealthResponse } from "../../../shared/contracts/health";
 import { Badge } from "../ui/Badge/Badge";
 import { Card } from "../ui/Card/Card";
 import { CardContent } from "../ui/Card/CardContent";
 import { CardHeader } from "../ui/Card/CardHeader";
 import { CardTitle } from "../ui/Card/CardTitle";
-import type { OverviewHealthCardState } from "./OverviewHealthCard.types";
+import { useOverviewHealthCard } from "./OverviewHealthCard.hooks";
 import { formatDate, statusToBadgeVariant } from "./OverviewHealthCard.utils";
 
-async function loadHealth(): Promise<OverviewHealthCardState> {
-  try {
-    const response = await fetch("/api/health");
-    if (!response.ok) {
-      return {
-        status: "error",
-        message: `Health endpoint failed (${response.status})`,
-      };
-    }
-
-    const payload = await response.json();
-    const parsed = parseOverviewHealthResponse(payload);
-    return { status: "ready", data: parsed };
-  } catch (error) {
-    return {
-      status: "error",
-      message: error instanceof Error ? error.message : "Unknown health error",
-    };
-  }
-}
-
 export function OverviewHealthCard() {
-  const [health, setHealth] = useState<OverviewHealthCardState>({
-    status: "loading",
-  });
+  const { error, hasData, health, isLoading, isRefreshing, pollMs, refresh } =
+    useOverviewHealthCard();
 
-  useEffect(() => {
-    let active = true;
-    void loadHealth().then((result) => {
-      if (active) {
-        setHealth(result);
-      }
-    });
-
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  if (health.status === "error") {
+  if (error && !hasData) {
     return (
       <Card className="border-red-500/40 bg-red-950/20">
         <CardHeader>
-          <CardTitle>Bridge & Sync Health</CardTitle>
+          <div className="flex items-center justify-between gap-3">
+            <CardTitle>Bridge & Sync Health</CardTitle>
+            <button
+              className="rounded-md border border-red-300/40 px-3 py-1 text-xs font-medium text-red-100 transition hover:border-red-200/70 disabled:cursor-not-allowed disabled:opacity-60"
+              type="button"
+              onClick={() => {
+                void refresh();
+              }}
+              disabled={isRefreshing}
+            >
+              {isRefreshing ? "Refreshing..." : "Refresh"}
+            </button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-2 text-sm text-red-200">
           <p>Unable to load health contract.</p>
-          <p>{health.message}</p>
+          <p>{error.message}</p>
         </CardContent>
       </Card>
     );
   }
 
-  if (health.status === "loading") {
+  if (isLoading || !health) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Bridge & Sync Health</CardTitle>
+          <div className="flex items-center justify-between gap-3">
+            <CardTitle>Bridge & Sync Health</CardTitle>
+            <button
+              className="rounded-md border border-border px-3 py-1 text-xs font-medium text-slate-100 transition hover:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
+              type="button"
+              onClick={() => {
+                void refresh();
+              }}
+              disabled
+            >
+              Refresh
+            </button>
+          </div>
         </CardHeader>
         <CardContent className="text-sm text-slate-300">Loading health data...</CardContent>
       </Card>
@@ -76,7 +63,19 @@ export function OverviewHealthCard() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Bridge & Sync Health</CardTitle>
+        <div className="flex items-center justify-between gap-3">
+          <CardTitle>Bridge & Sync Health</CardTitle>
+          <button
+            className="rounded-md border border-border px-3 py-1 text-xs font-medium text-slate-100 transition hover:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
+            type="button"
+            onClick={() => {
+              void refresh();
+            }}
+            disabled={isRefreshing}
+          >
+            {isRefreshing ? "Refreshing..." : "Refresh"}
+          </button>
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-2">
@@ -86,11 +85,11 @@ export function OverviewHealthCard() {
               Bridge
             </p>
             <div className="flex items-center gap-2">
-              <Badge variant={statusToBadgeVariant(health.data.bridge.status)}>
-                {health.data.bridge.status}
+              <Badge variant={statusToBadgeVariant(health.bridge.status)}>
+                {health.bridge.status}
               </Badge>
               <span className="text-sm text-slate-200">
-                {health.data.bridge.connected ? "Connected" : "Disconnected"}
+                {health.bridge.connected ? "Connected" : "Disconnected"}
               </span>
             </div>
           </div>
@@ -100,17 +99,15 @@ export function OverviewHealthCard() {
               Sync
             </p>
             <div className="flex items-center gap-2">
-              <Badge variant={statusToBadgeVariant(health.data.sync.status)}>
-                {health.data.sync.status}
-              </Badge>
-              <span className="text-sm text-slate-200">
-                {health.data.sync.pendingJobs} pending jobs
-              </span>
+              <Badge variant={statusToBadgeVariant(health.sync.status)}>{health.sync.status}</Badge>
+              <span className="text-sm text-slate-200">{health.sync.pendingJobs} pending jobs</span>
             </div>
           </div>
         </div>
         <p className="text-xs text-muted-foreground">
-          Updated {formatDate(health.data.generatedAt)} • Contract validated via shared Zod schema.
+          Last successful sync {formatDate(health.sync.lastRunAt)} • Updated{" "}
+          {formatDate(health.generatedAt)} • Polling every {pollMs / 1000}s • Contract validated via
+          shared Zod schema.
         </p>
       </CardContent>
     </Card>

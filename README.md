@@ -12,17 +12,18 @@ Slice 1 tracer bullet implemented with:
 1. Install dependencies:
 
 ```bash
-npm install
+vp install
 ```
 
 2. Start frontend + backend:
 
 ```bash
-npm run dev
+vp run dev
 ```
 
 - Frontend: `http://localhost:5173`
 - Backend: `http://127.0.0.1:8787`
+- Optional: set `VITE_HEALTH_POLL_MS` to configure health polling cadence (default `10000`, minimum `1000`).
 
 ## What this slice proves
 
@@ -33,9 +34,9 @@ npm run dev
 
 ## Scripts
 
-- `npm run dev` - run backend + frontend together
-- `npm run dev:backend` - run Hono backend only
-- `npm run dev:frontend` - run React frontend only
-- `npm run check` - format/lint/type checks through Vite+
-- `npm run test` - run tests
-- `npm run build` - production build
+- `vp run dev` - run backend + frontend together
+- `vp run dev:backend` - run Hono backend only
+- `vp run dev:frontend` - run React frontend only
+- `vp check` - format/lint/type checks through Vite+
+- `vp test` - run tests
+- `vp run build` - production build
