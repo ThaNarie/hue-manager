@@ -1,11 +1,12 @@
 # hue-manager
 
-Slice 1 tracer bullet implemented with:
+Slice 3 tracer bullet implemented with:
 
 - React frontend shell
-- Hono backend endpoint
+- Hono backend endpoints (`/api/health`, `/api/lights`)
 - Shared Zod contract validation
 - Tailwind CSS + shadcn-style component foundation
+- Lights dashboard with search/filter/sort UX
 
 ## Run locally
 
@@ -28,9 +29,9 @@ vp run dev
 ## What this slice proves
 
 - Frontend and backend run together locally.
-- Frontend fetches `/api/health` through Vite proxy.
-- Backend response and frontend boundary both validate via the same shared Zod schema (`shared/contracts/health.ts`).
-- Overview page renders bridge/sync health card from typed backend data.
+- Frontend fetches `/api/health` and `/api/lights` through Vite proxy.
+- Backend responses and frontend boundaries both validate via shared Zod schemas (`shared/contracts/*`).
+- Overview page renders bridge/sync health and a lights dashboard with search, room/zone filters, and sort controls.
 
 ## Scripts
 

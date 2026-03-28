@@ -1,4 +1,5 @@
 import { OverviewHealthCard } from "./components/OverviewHealthCard/OverviewHealthCard";
+import { LightsDashboard } from "./components/LightsDashboard/LightsDashboard";
 
 export function App() {
   return (
@@ -13,6 +14,7 @@ export function App() {
       </header>
 
       <OverviewHealthCard />
+      <LightsDashboard />
     </main>
   );
 }
