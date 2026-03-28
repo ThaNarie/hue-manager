@@ -1,0 +1,53 @@
+@import "tailwindcss";
+
+@plugin "tailwindcss-animate";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --background: 222 47% 8%;
+  --foreground: 214 32% 94%;
+  --card: 220 40% 14%;
+  --card-foreground: 214 32% 94%;
+  --primary: 154 65% 55%;
+  --primary-foreground: 222 47% 8%;
+  --muted: 223 30% 20%;
+  --muted-foreground: 215 20% 72%;
+  --border: 222 28% 28%;
+  --input: 222 28% 28%;
+  --ring: 154 65% 55%;
+  --success: 145 63% 49%;
+  --success-foreground: 214 32% 94%;
+  --warning: 41 92% 52%;
+  --warning-foreground: 220 40% 14%;
+  --danger: 0 72% 51%;
+  --danger-foreground: 214 32% 94%;
+  --radius: 0.8rem;
+  --destructive: 0 65% 54%;
+  --destructive-foreground: 214 32% 94%;
+}
+
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-border: hsl(var(--border));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --radius-lg: 0.8rem;
+  --radius-md: 0.55rem;
+  --radius-sm: 0.4rem;
+}
+
+* {
+  @apply border-border;
+}
+
+body {
+  @apply bg-background text-foreground m-0 min-h-screen antialiased;
+}
