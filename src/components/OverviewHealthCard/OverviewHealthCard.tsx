@@ -8,9 +8,10 @@ import { useOverviewHealthCard } from "./OverviewHealthCard.hooks";
 import { formatDate, statusToBadgeVariant } from "./OverviewHealthCard.utils";
 
 export function OverviewHealthCard() {
-  const { health, isRefreshing, pollMs, refresh } = useOverviewHealthCard();
+  const { error, hasData, health, isLoading, isRefreshing, pollMs, refresh } =
+    useOverviewHealthCard();
 
-  if (health.status === "error") {
+  if (error && !hasData) {
     return (
       <Card className="border-red-500/40 bg-red-950/20">
         <CardHeader>
@@ -30,13 +31,13 @@ export function OverviewHealthCard() {
         </CardHeader>
         <CardContent className="space-y-2 text-sm text-red-200">
           <p>Unable to load health contract.</p>
-          <p>{health.message}</p>
+          <p>{error.message}</p>
         </CardContent>
       </Card>
     );
   }
 
-  if (health.status === "loading") {
+  if (isLoading || !health) {
     return (
       <Card>
         <CardHeader>
@@ -84,11 +85,11 @@ export function OverviewHealthCard() {
               Bridge
             </p>
             <div className="flex items-center gap-2">
-              <Badge variant={statusToBadgeVariant(health.data.bridge.status)}>
-                {health.data.bridge.status}
+              <Badge variant={statusToBadgeVariant(health.bridge.status)}>
+                {health.bridge.status}
               </Badge>
               <span className="text-sm text-slate-200">
-                {health.data.bridge.connected ? "Connected" : "Disconnected"}
+                {health.bridge.connected ? "Connected" : "Disconnected"}
               </span>
             </div>
           </div>
@@ -98,18 +99,18 @@ export function OverviewHealthCard() {
               Sync
             </p>
             <div className="flex items-center gap-2">
-              <Badge variant={statusToBadgeVariant(health.data.sync.status)}>
-                {health.data.sync.status}
+              <Badge variant={statusToBadgeVariant(health.sync.status)}>
+                {health.sync.status}
               </Badge>
               <span className="text-sm text-slate-200">
-                {health.data.sync.pendingJobs} pending jobs
+                {health.sync.pendingJobs} pending jobs
               </span>
             </div>
           </div>
         </div>
         <p className="text-xs text-muted-foreground">
-          Last successful sync {formatDate(health.data.sync.lastRunAt)} • Updated{" "}
-          {formatDate(health.data.generatedAt)} • Polling every {pollMs / 1000}s • Contract
+          Last successful sync {formatDate(health.sync.lastRunAt)} • Updated{" "}
+          {formatDate(health.generatedAt)} • Polling every {pollMs / 1000}s • Contract
           validated via shared Zod schema.
         </p>
       </CardContent>
