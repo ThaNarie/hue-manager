@@ -1,4 +1,6 @@
-import { createServer } from "node:http";
+import { serve } from "@hono/node-server";
+import { Hono } from "hono";
+import { cors } from "hono/cors";
 import {
   OverviewHealthResponseSchema,
   type OverviewHealthResponse,
@@ -6,6 +8,10 @@ import {
 
 const host = process.env.API_HOST ?? "127.0.0.1";
 const port = Number(process.env.API_PORT ?? "8787");
+
+const app = new Hono();
+
+app.use("/api/*", cors());
 
 function getOverviewHealth(): OverviewHealthResponse {
   const now = new Date();
@@ -27,18 +33,20 @@ function getOverviewHealth(): OverviewHealthResponse {
   };
 }
 
-const server = createServer((req, res) => {
-  if (req.method === "GET" && req.url === "/api/health") {
-    const payload = OverviewHealthResponseSchema.parse(getOverviewHealth());
-    res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
-    res.end(JSON.stringify(payload));
-    return;
-  }
-
-  res.writeHead(404, { "content-type": "application/json; charset=utf-8" });
-  res.end(JSON.stringify({ message: "Not found" }));
+app.get("/api/health", (context) => {
+  const payload = OverviewHealthResponseSchema.parse(getOverviewHealth());
+  return context.json(payload);
 });
 
-server.listen(port, host, () => {
-  console.log(`API listening on http://${host}:${port}`);
-});
+app.notFound((context) => context.json({ message: "Not found" }, 404));
+
+serve(
+  {
+    fetch: app.fetch,
+    hostname: host,
+    port,
+  },
+  () => {
+    console.log(`API listening on http://${host}:${port}`);
+  },
+);

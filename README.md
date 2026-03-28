@@ -1,6 +1,11 @@
 # hue-manager
 
-Slice 1 tracer bullet: local frontend + backend with a typed, validated health contract.
+Slice 1 tracer bullet implemented with:
+
+- React frontend shell
+- Hono backend endpoint
+- Shared Zod contract validation
+- Tailwind CSS + shadcn-style component foundation
 
 ## Run locally
 
@@ -10,22 +15,27 @@ Slice 1 tracer bullet: local frontend + backend with a typed, validated health c
 npm install
 ```
 
-2. Start backend and frontend together:
+2. Start frontend + backend:
 
 ```bash
 npm run dev
 ```
 
 - Frontend: `http://localhost:5173`
-- Backend: `http://localhost:8787`
+- Backend: `http://127.0.0.1:8787`
 
-The frontend calls `/api/health` through the Vite proxy, and both sides validate the response with the shared Zod contract.
+## What this slice proves
+
+- Frontend and backend run together locally.
+- Frontend fetches `/api/health` through Vite proxy.
+- Backend response and frontend boundary both validate via the same shared Zod schema (`shared/contracts/health.ts`).
+- Overview page renders bridge/sync health card from typed backend data.
 
 ## Scripts
 
 - `npm run dev` - run backend + frontend together
-- `npm run dev:backend` - run only backend
-- `npm run dev:frontend` - run only frontend
+- `npm run dev:backend` - run Hono backend only
+- `npm run dev:frontend` - run React frontend only
 - `npm run check` - format/lint/type checks through Vite+
 - `npm run test` - run tests
 - `npm run build` - production build

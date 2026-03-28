@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vite-plus/test";
-import { parseOverviewHealthResponse } from "../shared/contracts/health";
+import { parseOverviewHealthResponse } from "../../shared/contracts/health";
 
 describe("overview health contract", () => {
   test("parses a valid backend response", () => {
