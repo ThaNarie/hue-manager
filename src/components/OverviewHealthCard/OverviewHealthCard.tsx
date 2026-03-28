@@ -99,19 +99,15 @@ export function OverviewHealthCard() {
               Sync
             </p>
             <div className="flex items-center gap-2">
-              <Badge variant={statusToBadgeVariant(health.sync.status)}>
-                {health.sync.status}
-              </Badge>
-              <span className="text-sm text-slate-200">
-                {health.sync.pendingJobs} pending jobs
-              </span>
+              <Badge variant={statusToBadgeVariant(health.sync.status)}>{health.sync.status}</Badge>
+              <span className="text-sm text-slate-200">{health.sync.pendingJobs} pending jobs</span>
             </div>
           </div>
         </div>
         <p className="text-xs text-muted-foreground">
           Last successful sync {formatDate(health.sync.lastRunAt)} • Updated{" "}
-          {formatDate(health.generatedAt)} • Polling every {pollMs / 1000}s • Contract
-          validated via shared Zod schema.
+          {formatDate(health.generatedAt)} • Polling every {pollMs / 1000}s • Contract validated via
+          shared Zod schema.
         </p>
       </CardContent>
     </Card>
