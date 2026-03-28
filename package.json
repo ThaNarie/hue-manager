@@ -4,11 +4,19 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vp dev",
+    "dev": "node scripts/dev.mjs",
+    "dev:frontend": "vp dev",
+    "dev:backend": "node --experimental-strip-types backend/server.ts",
     "build": "tsc && vp build",
+    "check": "vp check",
+    "test": "vp test",
     "preview": "vp preview"
   },
+  "dependencies": {
+    "zod": "^4.3.6"
+  },
   "devDependencies": {
+    "@types/node": "^24.6.0",
     "typescript": "~5.9.3",
     "vite": "npm:@voidzero-dev/vite-plus-core@latest",
     "vite-plus": "latest"

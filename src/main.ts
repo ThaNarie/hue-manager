@@ -1,60 +1,103 @@
 import "./style.css";
-import typescriptLogo from "./assets/typescript.svg";
-import viteLogo from "./assets/vite.svg";
-import heroImg from "./assets/hero.png";
-import { setupCounter } from "./counter.ts";
+import {
+  type OverviewHealthResponse,
+  parseOverviewHealthResponse,
+} from "../shared/contracts/health";
 
-document.querySelector<HTMLDivElement>("#app")!.innerHTML = `
-<section id="center">
-  <div class="hero">
-    <img src="${heroImg}" class="base" width="170" height="179">
-    <img src="${typescriptLogo}" class="framework" alt="TypeScript logo"/>
-    <img src=${viteLogo} class="vite" alt="Vite logo" />
-  </div>
-  <div>
-    <h1>Get started</h1>
-    <p>Edit <code>src/main.ts</code> and save to test <code>HMR</code></p>
-  </div>
-  <button id="counter" type="button" class="counter"></button>
-</section>
+type UiState =
+  | { status: "loading" }
+  | { status: "ready"; data: OverviewHealthResponse }
+  | { status: "error"; message: string };
 
-<div class="ticks"></div>
+const app = document.querySelector<HTMLDivElement>("#app");
 
-<section id="next-steps">
-  <div id="docs">
-    <svg class="icon" role="presentation" aria-hidden="true"><use href="/icons.svg#documentation-icon"></use></svg>
-    <h2>Documentation</h2>
-    <p>Your questions, answered</p>
-    <ul>
-      <li>
-        <a href="https://vite.dev/" target="_blank">
-          <img class="logo" src=${viteLogo} alt="" />
-          Explore Vite
-        </a>
-      </li>
-      <li>
-        <a href="https://www.typescriptlang.org" target="_blank">
-          <img class="button-icon" src="${typescriptLogo}" alt="">
-          Learn more
-        </a>
-      </li>
-    </ul>
-  </div>
-  <div id="social">
-    <svg class="icon" role="presentation" aria-hidden="true"><use href="/icons.svg#social-icon"></use></svg>
-    <h2>Connect with us</h2>
-    <p>Join the Vite community</p>
-    <ul>
-      <li><a href="https://github.com/vitejs/vite" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#github-icon"></use></svg>GitHub</a></li>
-      <li><a href="https://chat.vite.dev/" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#discord-icon"></use></svg>Discord</a></li>
-      <li><a href="https://x.com/vite_js" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#x-icon"></use></svg>X.com</a></li>
-      <li><a href="https://bsky.app/profile/vite.dev" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#bluesky-icon"></use></svg>Bluesky</a></li>
-    </ul>
-  </div>
-</section>
+if (!app) {
+  throw new Error("Failed to locate #app root element");
+}
 
-<div class="ticks"></div>
-<section id="spacer"></section>
+app.innerHTML = `
+  <main class="overview-page">
+    <header class="overview-header">
+      <h1>Hue Manager Overview</h1>
+      <p>Tracer bullet: frontend + backend + shared contract validation.</p>
+    </header>
+    <section class="health-card" aria-live="polite">
+      <h2>Bridge & Sync Health</h2>
+      <dl class="health-grid">
+        <div>
+          <dt>Bridge</dt>
+          <dd id="bridge-health">Loading...</dd>
+        </div>
+        <div>
+          <dt>Sync</dt>
+          <dd id="sync-health">Loading...</dd>
+        </div>
+        <div>
+          <dt>Updated</dt>
+          <dd id="updated-at">Loading...</dd>
+        </div>
+      </dl>
+      <p id="status-message" class="status-message">Requesting /api/health…</p>
+    </section>
+  </main>
 `;
 
-setupCounter(document.querySelector<HTMLButtonElement>("#counter")!);
+function requireElement<TElement extends HTMLElement>(selector: string): TElement {
+  const element = document.querySelector<TElement>(selector);
+  if (!element) {
+    throw new Error(`Failed to locate required element: ${selector}`);
+  }
+  return element;
+}
+
+const bridgeHealthElement = requireElement<HTMLElement>("#bridge-health");
+const syncHealthElement = requireElement<HTMLElement>("#sync-health");
+const updatedAtElement = requireElement<HTMLElement>("#updated-at");
+const statusMessageElement = requireElement<HTMLElement>("#status-message");
+
+function renderState(state: UiState): void {
+  if (state.status === "loading") {
+    bridgeHealthElement.textContent = "Loading...";
+    syncHealthElement.textContent = "Loading...";
+    updatedAtElement.textContent = "Loading...";
+    statusMessageElement.textContent = "Requesting /api/health…";
+    statusMessageElement.dataset.state = "loading";
+    return;
+  }
+
+  if (state.status === "error") {
+    bridgeHealthElement.textContent = "Unknown";
+    syncHealthElement.textContent = "Unknown";
+    updatedAtElement.textContent = "Unknown";
+    statusMessageElement.textContent = state.message;
+    statusMessageElement.dataset.state = "error";
+    return;
+  }
+
+  bridgeHealthElement.textContent = `${state.data.bridge.status} (${state.data.bridge.connected ? "connected" : "disconnected"})`;
+  syncHealthElement.textContent = `${state.data.sync.status} (${state.data.sync.pendingJobs} pending)`;
+  updatedAtElement.textContent = new Date(state.data.generatedAt).toLocaleString();
+  statusMessageElement.textContent = "Health contract validated with shared Zod schema.";
+  statusMessageElement.dataset.state = "ready";
+}
+
+async function loadHealth(): Promise<void> {
+  renderState({ status: "loading" });
+
+  try {
+    const response = await fetch("/api/health");
+
+    if (!response.ok) {
+      throw new Error(`Health endpoint failed: ${response.status}`);
+    }
+
+    const payload = await response.json();
+    const parsed = parseOverviewHealthResponse(payload);
+    renderState({ status: "ready", data: parsed });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown health check error";
+    renderState({ status: "error", message: `Unable to load health: ${message}` });
+  }
+}
+
+void loadHealth();
