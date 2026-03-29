@@ -10,6 +10,7 @@ import {
   transitionIssueLifecycleLabel,
 } from "./issue-lifecycle.js";
 import { pollIssuePlan } from "./issue-selection.js";
+import { runStartLoop } from "./start-scheduler.js";
 import { RalphStateStore } from "./state-store.js";
 import type { RalphConfig } from "./types.js";
 import { executeIssueWork } from "./worker-execution.js";
@@ -119,32 +120,7 @@ async function runOnce(config: RalphConfig, options: { dryRun: boolean }): Promi
 }
 
 async function runStart(config: RalphConfig, options: { dryRun: boolean }): Promise<void> {
-  loadSecrets();
-
-  console.log(`[Ralph] start: running every ${config.loopIntervalMs}ms for ${config.repo}`);
-  console.log("[Ralph] Press Ctrl+C to stop.");
-
-  let stopping = false;
-  process.on("SIGINT", () => {
-    stopping = true;
-  });
-
-  while (!stopping) {
-    const startedAt = new Date().toISOString();
-    console.log(`[Ralph] tick ${startedAt}`);
-    try {
-      await runOnce(config, options);
-    } catch (error) {
-      console.error(
-        `[Ralph] tick failed: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
-    if (!stopping) {
-      await sleep(config.loopIntervalMs);
-    }
-  }
-
-  console.log("[Ralph] stopped.");
+  await runStartLoop(config, options);
 }
 
 function printPlan(plan: ReturnType<typeof pollIssuePlan>): void {
@@ -290,12 +266,6 @@ function checkTool(name: string, args: string[], guidance: string): ToolCheck {
     ok: true,
     details: (result.stdout || result.stderr).trim(),
   };
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
 }
 
 void main();

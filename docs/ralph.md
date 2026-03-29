@@ -16,6 +16,9 @@ Non-secret config lives in `ralph.config.json`:
 
 - `repo`: GitHub repo in `owner/repo` format.
 - `loopIntervalMs`: loop interval used by `ralph:start`.
+- `maxWorkers`: maximum concurrent issue workers Ralph can run.
+- `idleBackoffMaxMs`: max delay cap when no eligible work exists.
+- `idleBackoffJitterMs`: random jitter added to idle polls.
 - `baseBranch`: base branch for issue worktree and PR target.
 - `workerImage`: Docker image used to run the worker.
 - `workerTimeoutMs`: hard timeout for a worker run.

@@ -7,6 +7,9 @@ export type RalphLabelConfig = {
 export type RalphConfig = {
   repo: string;
   loopIntervalMs: number;
+  maxWorkers: number;
+  idleBackoffMaxMs: number;
+  idleBackoffJitterMs: number;
   baseBranch: string;
   workerImage: string;
   workerTimeoutMs: number;
