@@ -5,6 +5,7 @@ import { loadRalphConfig } from "./config.js";
 import { getMissingSecrets, loadSecrets } from "./env.js";
 import { runGh } from "./github.js";
 import { pollIssuePlan } from "./issue-selection.js";
+import { RalphStateStore } from "./state-store.js";
 import type { RalphConfig } from "./types.js";
 
 type ToolCheck = {
@@ -44,9 +45,30 @@ async function runOnce(config: RalphConfig, options: { dryRun: boolean }): Promi
   loadSecrets();
 
   const plan = pollIssuePlan(config.repo);
-  const mode = options.dryRun ? "dry-run" : "live";
-  console.log(`[Ralph] once (${mode}): polled ${config.repo}`);
-  printPlan(plan);
+  const stateStore = new RalphStateStore();
+  try {
+    const mode = options.dryRun ? "dry-run" : "live";
+    console.log(`[Ralph] once (${mode}): polled ${config.repo}`);
+    printPlan(plan);
+    const nextIssue = plan.eligible[0];
+
+    if (nextIssue) {
+      if (options.dryRun) {
+        const previewRunId = stateStore.peekNextRunId(nextIssue.number);
+        console.log(
+          `[Ralph] dry-run: next run id for #${nextIssue.number} would be ${previewRunId}`,
+        );
+      } else {
+        const run = stateStore.createRunAttempt({
+          issueNumber: nextIssue.number,
+          triggerType: "poll",
+        });
+        console.log(`[Ralph] created run ${run.runId} for #${nextIssue.number}`);
+      }
+    }
+  } finally {
+    stateStore.close();
+  }
 
   if (options.dryRun) {
     console.log(
