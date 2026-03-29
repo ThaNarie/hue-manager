@@ -12,6 +12,11 @@ const DEFAULT_REQUIRED_LABELS: RalphLabelConfig[] = [
     description: "Eligible for Ralph pickup",
   },
   {
+    name: "ai:claimed",
+    color: "FBCA04",
+    description: "Claimed by Ralph before execution starts",
+  },
+  {
     name: "ai:in-progress",
     color: "5319E7",
     description: "Worker currently running",

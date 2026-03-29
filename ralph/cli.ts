@@ -4,6 +4,11 @@ import process from "node:process";
 import { loadRalphConfig } from "./config.js";
 import { getMissingSecrets, loadSecrets } from "./env.js";
 import { runGh } from "./github.js";
+import {
+  claimIssue,
+  getAuthenticatedActorLogin,
+  transitionIssueLifecycleLabel,
+} from "./issue-lifecycle.js";
 import { pollIssuePlan } from "./issue-selection.js";
 import { RalphStateStore } from "./state-store.js";
 import type { RalphConfig } from "./types.js";
@@ -59,11 +64,37 @@ async function runOnce(config: RalphConfig, options: { dryRun: boolean }): Promi
           `[Ralph] dry-run: next run id for #${nextIssue.number} would be ${previewRunId}`,
         );
       } else {
+        const actorLogin = getAuthenticatedActorLogin();
+        const claimResult = claimIssue(config.repo, nextIssue.number, actorLogin);
+        if (claimResult.status !== "claimed") {
+          console.log(
+            `[Ralph] skipped #${nextIssue.number}: could not claim issue (${claimResult.reason}).`,
+          );
+          return;
+        }
+        console.log(`[Ralph] claimed #${nextIssue.number} as ${actorLogin}`);
+
         const run = stateStore.createRunAttempt({
           issueNumber: nextIssue.number,
           triggerType: "poll",
         });
         console.log(`[Ralph] created run ${run.runId} for #${nextIssue.number}`);
+
+        transitionIssueLifecycleLabel(config.repo, nextIssue.number, "ai:in-progress");
+        console.log(`[Ralph] transitioned #${nextIssue.number} to ai:in-progress`);
+
+        try {
+          executeIssueWork(nextIssue.number);
+          stateStore.updateRunStatus(run.runId, "succeeded");
+          transitionIssueLifecycleLabel(config.repo, nextIssue.number, "ai:review");
+          console.log(`[Ralph] transitioned #${nextIssue.number} to ai:review`);
+        } catch (error) {
+          const failureReason = error instanceof Error ? error.message : String(error);
+          stateStore.updateRunStatus(run.runId, "failed", { failureReason });
+          transitionIssueLifecycleLabel(config.repo, nextIssue.number, "ai:failed");
+          console.log(`[Ralph] transitioned #${nextIssue.number} to ai:failed`);
+          console.error(`[Ralph] run ${run.runId} failed: ${failureReason}`);
+        }
       }
     }
   } finally {
@@ -74,10 +105,11 @@ async function runOnce(config: RalphConfig, options: { dryRun: boolean }): Promi
     console.log(
       "[Ralph] dry-run: no labels, assignments, branches, containers, or PRs were modified.",
     );
-    return;
   }
+}
 
-  console.log("[Ralph] issue execution is not implemented in this slice.");
+function executeIssueWork(issueNumber: number): void {
+  throw new Error(`issue execution is not implemented for #${issueNumber}`);
 }
 
 async function runStart(config: RalphConfig, options: { dryRun: boolean }): Promise<void> {
