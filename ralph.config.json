@@ -1,0 +1,31 @@
+{
+  "repo": "thanarie/hue-manager",
+  "loopIntervalMs": 60000,
+  "requiredLabels": [
+    {
+      "name": "ai:ready",
+      "color": "1D76DB",
+      "description": "Eligible for Ralph pickup"
+    },
+    {
+      "name": "ai:in-progress",
+      "color": "5319E7",
+      "description": "Worker currently running"
+    },
+    {
+      "name": "ai:review",
+      "color": "0E8A16",
+      "description": "PR opened and awaiting review"
+    },
+    {
+      "name": "ai:blocked",
+      "color": "B60205",
+      "description": "Blocked by dependencies or manual hold"
+    },
+    {
+      "name": "ai:failed",
+      "color": "D93F0B",
+      "description": "Run failed; needs triage"
+    }
+  ]
+}
