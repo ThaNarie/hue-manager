@@ -3,6 +3,8 @@ import process from "node:process";
 
 import { loadRalphConfig } from "./config.js";
 import { getMissingSecrets, loadSecrets } from "./env.js";
+import { runGh } from "./github.js";
+import { pollIssuePlan } from "./issue-selection.js";
 import type { RalphConfig } from "./types.js";
 
 type ToolCheck = {
@@ -13,6 +15,8 @@ type ToolCheck = {
 
 async function main(): Promise<void> {
   const command = process.argv[2];
+  const options = process.argv.slice(3);
+  const dryRun = options.includes("--dry-run");
   const config = loadRalphConfig();
 
   switch (command) {
@@ -20,10 +24,10 @@ async function main(): Promise<void> {
       process.exitCode = await runDoctor(config);
       return;
     case "once":
-      await runOnce(config);
+      await runOnce(config, { dryRun });
       return;
     case "start":
-      await runStart(config);
+      await runStart(config, { dryRun });
       return;
     default:
       printUsage();
@@ -33,16 +37,28 @@ async function main(): Promise<void> {
 
 function printUsage(): void {
   console.log("Ralph CLI");
-  console.log("Usage: node dist/ralph/cli.js <doctor|once|start>");
+  console.log("Usage: node dist/ralph/cli.js <doctor|once|start> [--dry-run]");
 }
 
-async function runOnce(config: RalphConfig): Promise<void> {
+async function runOnce(config: RalphConfig, options: { dryRun: boolean }): Promise<void> {
   loadSecrets();
-  console.log(`[Ralph] once: bootstrap checks passed for ${config.repo}`);
-  console.log("[Ralph] worker orchestration is intentionally not implemented in slice 1.");
+
+  const plan = pollIssuePlan(config.repo);
+  const mode = options.dryRun ? "dry-run" : "live";
+  console.log(`[Ralph] once (${mode}): polled ${config.repo}`);
+  printPlan(plan);
+
+  if (options.dryRun) {
+    console.log(
+      "[Ralph] dry-run: no labels, assignments, branches, containers, or PRs were modified.",
+    );
+    return;
+  }
+
+  console.log("[Ralph] issue execution is not implemented in this slice.");
 }
 
-async function runStart(config: RalphConfig): Promise<void> {
+async function runStart(config: RalphConfig, options: { dryRun: boolean }): Promise<void> {
   loadSecrets();
 
   console.log(`[Ralph] start: running every ${config.loopIntervalMs}ms for ${config.repo}`);
@@ -57,7 +73,7 @@ async function runStart(config: RalphConfig): Promise<void> {
     const startedAt = new Date().toISOString();
     console.log(`[Ralph] tick ${startedAt}`);
     try {
-      await runOnce(config);
+      await runOnce(config, options);
     } catch (error) {
       console.error(
         `[Ralph] tick failed: ${error instanceof Error ? error.message : String(error)}`,
@@ -69,6 +85,24 @@ async function runStart(config: RalphConfig): Promise<void> {
   }
 
   console.log("[Ralph] stopped.");
+}
+
+function printPlan(plan: ReturnType<typeof pollIssuePlan>): void {
+  if (plan.eligible.length === 0) {
+    console.log("[Ralph] eligible issues: none");
+  } else {
+    const ordered = plan.eligible.map((issue) => `#${issue.number}`).join(", ");
+    console.log(`[Ralph] eligible issues (ordered): ${ordered}`);
+    const next = plan.eligible[0];
+    console.log(`[Ralph] next issue: #${next.number} ${next.title}`);
+  }
+
+  if (plan.ineligible.length > 0) {
+    console.log("[Ralph] ineligible issues:");
+    for (const issue of plan.ineligible) {
+      console.log(`- #${issue.number} ${issue.title} (${issue.reason})`);
+    }
+  }
 }
 
 async function runDoctor(config: RalphConfig): Promise<number> {
@@ -176,23 +210,6 @@ function ensureRequiredLabels(config: RalphConfig): string[] {
   }
 
   return created;
-}
-
-function runGh(args: string[]): { stdout: string } {
-  const result = spawnSync("gh", args, {
-    encoding: "utf8",
-    env: process.env,
-  });
-
-  if (result.error) {
-    throw result.error;
-  }
-
-  if (result.status !== 0) {
-    throw new Error(result.stderr.trim() || "unknown gh error");
-  }
-
-  return { stdout: result.stdout };
 }
 
 function checkTool(name: string, args: string[], guidance: string): ToolCheck {
