@@ -113,15 +113,7 @@ function buildDependencyState(repo: string, issues: GhIssue[]): Map<number, stri
   const state = new Map<number, string>();
   for (const number of dependencyNumbers) {
     try {
-      const result = runGh([
-        "issue",
-        "view",
-        String(number),
-        "--repo",
-        repo,
-        "--json",
-        "state",
-      ]);
+      const result = runGh(["issue", "view", String(number), "--repo", repo, "--json", "state"]);
       const parsed = JSON.parse(result.stdout) as GhIssueState;
       state.set(number, parsed.state);
     } catch {
