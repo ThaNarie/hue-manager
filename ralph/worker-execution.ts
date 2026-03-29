@@ -2,6 +2,9 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
+import { getCursorWorkerScript, getIssueContext, renderCursorPrompt } from "./worker-cursor.js";
+import { commitFinalChanges, pushAndOpenOrReusePr, runQualityChecks } from "./worker-publish.js";
+
 export type CommandResult = {
   status: number | null;
   stdout: string;
@@ -21,6 +24,7 @@ export type CommandOptions = {
 };
 
 export type ExecuteIssueWorkInput = {
+  repo: string;
   issueNumber: number;
   runId: string;
   baseBranch: string;
@@ -34,6 +38,7 @@ export type ExecuteIssueWorkResult = {
   worktreePath: string;
   artifactPath: string;
   containerName: string;
+  prUrl: string;
 };
 
 const defaultRunner: CommandRunner = (command, args, options = {}) => {
@@ -61,9 +66,11 @@ export function executeIssueWork(
   const artifactPath = resolve(repoRoot, ".ralph/artifacts", input.runId);
   const containerName = formatContainerName(input.runId);
   const startedAt = new Date().toISOString();
+  const issueContext = getIssueContext(input.repo, input.issueNumber, runCommand);
 
   mkdirSync(artifactPath, { recursive: true });
   writeRunManifest(artifactPath, {
+    repo: input.repo,
     issueNumber: input.issueNumber,
     runId: input.runId,
     issueBranch,
@@ -72,6 +79,11 @@ export function executeIssueWork(
     workerTimeoutMs: input.workerTimeoutMs,
     startedAt,
   });
+  writeFileSync(
+    resolve(artifactPath, "cursor-prompt.md"),
+    renderCursorPrompt(input, issueBranch, issueContext),
+    "utf8",
+  );
 
   if (existsSync(worktreePath)) {
     runCommand("git", ["worktree", "remove", "--force", worktreePath], { cwd: repoRoot });
@@ -99,8 +111,8 @@ export function executeIssueWork(
       cwd: repoRoot,
       timeoutMs: input.workerTimeoutMs,
     });
-
     writeRunLogs(artifactPath, dockerRunOutput);
+
     if (dockerRunOutput.error) {
       if (dockerRunOutput.error.code === "ETIMEDOUT") {
         throw new Error(`worker timed out after ${input.workerTimeoutMs}ms`);
@@ -113,7 +125,6 @@ export function executeIssueWork(
       );
     }
   } finally {
-    // Cleanup is enforced even when run startup fails or times out.
     runCommand("docker", ["rm", "-f", containerName], { cwd: repoRoot });
     writeFileSync(resolve(artifactPath, "cleanup.json"), JSON.stringify({ containerName }));
   }
@@ -123,15 +134,22 @@ export function executeIssueWork(
     JSON.stringify({ status: "succeeded", completedAt: new Date().toISOString() }),
   );
 
-  return {
+  runQualityChecks(worktreePath, runCommand);
+  const commitSha = commitFinalChanges(input.issueNumber, worktreePath, runCommand);
+  const prUrl = pushAndOpenOrReusePr(
+    input,
     issueBranch,
+    issueContext.title,
     worktreePath,
-    artifactPath,
-    containerName,
-  };
+    runCommand,
+    runOrThrow,
+  );
+  writeFileSync(resolve(artifactPath, "publish.json"), JSON.stringify({ commitSha, prUrl }));
+
+  return { issueBranch, worktreePath, artifactPath, containerName, prUrl };
 }
 
-function runOrThrow(
+export function runOrThrow(
   runCommand: CommandRunner,
   command: string,
   args: string[],
@@ -181,19 +199,14 @@ function buildDockerRunArgs(
     args.push("--env", `CURSOR_API_KEY=${cursorApiKey}`);
   }
 
-  args.push(
-    input.workerImage,
-    "sh",
-    "-lc",
-    'echo "Ralph worker bootstrap" | tee /artifacts/worker.log',
-  );
-
+  args.push(input.workerImage, "sh", "-lc", getCursorWorkerScript());
   return args;
 }
 
 function writeRunManifest(
   artifactPath: string,
   manifest: {
+    repo: string;
     issueNumber: number;
     runId: string;
     issueBranch: string;

@@ -88,6 +88,7 @@ async function runOnce(config: RalphConfig, options: { dryRun: boolean }): Promi
 
         try {
           executeIssueWork({
+            repo: config.repo,
             issueNumber: nextIssue.number,
             runId: run.runId,
             baseBranch: config.baseBranch,

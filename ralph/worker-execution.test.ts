@@ -40,14 +40,24 @@ function createRunner(responses: Record<string, CommandResult>): {
       timeoutMs: options?.timeoutMs,
     });
     const key = [command, ...args].join(" ");
-    return responses[key] ?? { status: 0, stdout: "", stderr: "" };
+    const exact = responses[key];
+    if (exact) {
+      return exact;
+    }
+    const prefixEntry = Object.entries(responses).find(
+      ([pattern]) => pattern.endsWith("*") && key.startsWith(pattern.slice(0, -1)),
+    );
+    if (prefixEntry) {
+      return prefixEntry[1];
+    }
+    return { status: 0, stdout: "", stderr: "" };
   };
 
   return { invocations, run };
 }
 
 describe("executeIssueWork", () => {
-  test("creates deterministic worktree and launches worker container with artifacts", () => {
+  test("runs cursor worker, quality gates, publish commit, and opens a PR", () => {
     const repoRoot = createTempRepoRoot();
     const runId = "issue-000025-run-0001";
     const worktreePath = resolve(repoRoot, ".ralph/worktrees", runId);
@@ -55,16 +65,41 @@ describe("executeIssueWork", () => {
     const containerName = "ralph-issue-000025-run-0001";
 
     const { invocations, run } = createRunner({
-      [`docker run --name ${containerName} --workdir /workspace --volume ${worktreePath}:/workspace --volume ${artifactPath}:/artifacts --env ISSUE_NUMBER=25 --env RUN_ID=${runId} --env ISSUE_BRANCH=ralph/issue-000025 --env BASE_BRANCH=main node:22-alpine sh -lc echo "Ralph worker bootstrap" | tee /artifacts/worker.log`]:
+      "gh issue view 25 --repo thanarie/hue-manager --json number,title,body": {
+        status: 0,
+        stdout: JSON.stringify({
+          number: 25,
+          title: "Test issue title",
+          body: "Test issue body",
+        }),
+        stderr: "",
+      },
+      [`git -C ${worktreePath} diff --cached --quiet`]: {
+        status: 1,
+        stdout: "",
+        stderr: "",
+      },
+      [`git -C ${worktreePath} rev-parse HEAD`]: {
+        status: 0,
+        stdout: "abc123\n",
+        stderr: "",
+      },
+      "gh pr list --repo thanarie/hue-manager --head ralph/issue-000025 --state open --json url": {
+        status: 0,
+        stdout: "[]",
+        stderr: "",
+      },
+      "gh pr create --repo thanarie/hue-manager --base main --head ralph/issue-000025 --title Ralph: #25 Test issue title --body Automated Ralph run issue-000025-run-0001.\n\nCloses #25":
         {
           status: 0,
-          stdout: "worker started\n",
+          stdout: "https://github.com/thanarie/hue-manager/pull/100\n",
           stderr: "",
         },
     });
 
     const result = executeIssueWork(
       {
+        repo: "thanarie/hue-manager",
         issueNumber: 25,
         runId,
         baseBranch: "main",
@@ -79,17 +114,33 @@ describe("executeIssueWork", () => {
     expect(result.worktreePath).toBe(worktreePath);
     expect(result.artifactPath).toBe(artifactPath);
     expect(result.containerName).toBe(containerName);
-    expect(invocations.map((entry) => `${entry.command} ${entry.args.join(" ")}`)).toEqual([
-      `git worktree add --detach ${worktreePath} main`,
-      `git -C ${worktreePath} checkout -B ralph/issue-000025 main`,
-      `docker run --name ${containerName} --workdir /workspace --volume ${worktreePath}:/workspace --volume ${artifactPath}:/artifacts --env ISSUE_NUMBER=25 --env RUN_ID=${runId} --env ISSUE_BRANCH=ralph/issue-000025 --env BASE_BRANCH=main node:22-alpine sh -lc echo "Ralph worker bootstrap" | tee /artifacts/worker.log`,
-      `docker rm -f ${containerName}`,
-    ]);
-
-    expect(readFileSync(resolve(artifactPath, "worker.stdout.log"), "utf8")).toBe(
-      "worker started\n",
+    expect(result.prUrl).toBe("https://github.com/thanarie/hue-manager/pull/100");
+    const commands = invocations.map((entry) => `${entry.command} ${entry.args.join(" ")}`);
+    expect(commands).toContain(
+      "gh issue view 25 --repo thanarie/hue-manager --json number,title,body",
     );
+    expect(commands).toContain(`git worktree add --detach ${worktreePath} main`);
+    expect(commands).toContain(`git -C ${worktreePath} checkout -B ralph/issue-000025 main`);
+    expect(
+      commands.some(
+        (command) =>
+          command.startsWith(
+            `docker run --name ${containerName} --workdir /workspace --volume ${worktreePath}:/workspace --volume ${artifactPath}:/artifacts`,
+          ) && command.includes("cursor-agent --force --print"),
+      ),
+    ).toBe(true);
+    expect(commands).toContain(`vp run build`);
+    expect(commands).toContain(`vp test`);
+    expect(commands).toContain(`vp check --fix`);
+    expect(commands).toContain(`git -C ${worktreePath} add -A`);
+    expect(commands).toContain(`git -C ${worktreePath} commit -m chore(ralph): implement #25`);
+    expect(commands).toContain(`git -C ${worktreePath} push -u origin ralph/issue-000025`);
+
+    expect(readFileSync(resolve(artifactPath, "worker.stdout.log"), "utf8")).toBe("");
     expect(readFileSync(resolve(artifactPath, "worker.stderr.log"), "utf8")).toBe("");
+    expect(readFileSync(resolve(artifactPath, "cursor-prompt.md"), "utf8")).toContain(
+      "Test issue title",
+    );
     expect(JSON.parse(readFileSync(resolve(artifactPath, "result.json"), "utf8"))).toEqual({
       status: "succeeded",
       completedAt: expect.any(String),
@@ -99,25 +150,32 @@ describe("executeIssueWork", () => {
   test("enforces worker timeout and still cleans up the container", () => {
     const repoRoot = createTempRepoRoot();
     const runId = "issue-000025-run-0001";
-    const worktreePath = resolve(repoRoot, ".ralph/worktrees", runId);
-    const artifactPath = resolve(repoRoot, ".ralph/artifacts", runId);
     const containerName = "ralph-issue-000025-run-0001";
     const timeoutError = new Error("timed out") as NodeJS.ErrnoException;
     timeoutError.code = "ETIMEDOUT";
 
     const { invocations, run } = createRunner({
-      [`docker run --name ${containerName} --workdir /workspace --volume ${worktreePath}:/workspace --volume ${artifactPath}:/artifacts --env ISSUE_NUMBER=25 --env RUN_ID=${runId} --env ISSUE_BRANCH=ralph/issue-000025 --env BASE_BRANCH=main node:22-alpine sh -lc echo "Ralph worker bootstrap" | tee /artifacts/worker.log`]:
-        {
-          status: null,
-          stdout: "",
-          stderr: "",
-          error: timeoutError,
-        },
+      "gh issue view 25 --repo thanarie/hue-manager --json number,title,body": {
+        status: 0,
+        stdout: JSON.stringify({
+          number: 25,
+          title: "Timeout case",
+          body: "",
+        }),
+        stderr: "",
+      },
+      "docker run *": {
+        status: null,
+        stdout: "",
+        stderr: "",
+        error: timeoutError,
+      },
     });
 
     expect(() =>
       executeIssueWork(
         {
+          repo: "thanarie/hue-manager",
           issueNumber: 25,
           runId,
           baseBranch: "main",
