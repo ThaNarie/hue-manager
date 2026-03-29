@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vite-plus/test";
 
-import { parseBlockedByDependencies } from "./issue-selection";
+import { parseBlockedByDependencies } from "./issue-selection.js";
 
 describe("parseBlockedByDependencies", () => {
   test("returns none when blocked-by heading is missing", () => {
