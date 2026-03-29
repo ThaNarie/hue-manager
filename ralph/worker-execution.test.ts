@@ -126,7 +126,7 @@ describe("executeIssueWork", () => {
         (command) =>
           command.startsWith(
             `docker run --name ${containerName} --workdir /workspace --volume ${worktreePath}:/workspace --volume ${artifactPath}:/artifacts`,
-          ) && command.includes("cursor-agent --force --print"),
+          ) && command.includes("agent -p --force --workspace /workspace --model gpt-5.3-codex"),
       ),
     ).toBe(true);
     expect(commands).toContain(`vp run build`);

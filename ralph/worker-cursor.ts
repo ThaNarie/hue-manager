@@ -56,13 +56,19 @@ export function renderCursorPrompt(
 export function getCursorWorkerScript(): string {
   return [
     "set -euo pipefail",
-    "if command -v cursor-agent >/dev/null 2>&1; then",
-    '  cursor-agent --force --print --cwd /workspace "$(cat /artifacts/cursor-prompt.md)" 2>&1 | tee /artifacts/worker.log',
-    "elif command -v cursor >/dev/null 2>&1; then",
-    '  cursor --force --print --cwd /workspace "$(cat /artifacts/cursor-prompt.md)" 2>&1 | tee /artifacts/worker.log',
-    "else",
-    '  echo "Cursor CLI binary not found in worker image." >&2',
+    "if ! command -v agent >/dev/null 2>&1; then",
+    "  if command -v curl >/dev/null 2>&1 && command -v bash >/dev/null 2>&1; then",
+    "    curl https://cursor.com/install -fsS | bash",
+    '    export PATH="$HOME/.cursor/bin:$PATH"',
+    "  else",
+    '    echo "Cursor CLI is missing. Install prerequisites (curl, bash) and run: curl https://cursor.com/install -fsS | bash" >&2',
+    "    exit 1",
+    "  fi",
+    "fi",
+    "if ! command -v agent >/dev/null 2>&1; then",
+    '  echo "Cursor CLI install completed, but `agent` was not found on PATH." >&2',
     "  exit 1",
     "fi",
+    'agent -p --force --workspace /workspace --model gpt-5.3-codex "$(cat /artifacts/cursor-prompt.md)" 2>&1 | tee /artifacts/worker.log',
   ].join("; ");
 }
