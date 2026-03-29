@@ -12,11 +12,10 @@
     "ralph:build": "tsc -p tsconfig.ralph.json",
     "ralph:start": "tsc -p tsconfig.ralph.json && node dist/ralph/cli.js start",
     "ralph:once": "tsc -p tsconfig.ralph.json && node dist/ralph/cli.js once",
-    "ralph:doctor": "tsc -p tsconfig.ralph.json && node dist/ralph/cli.js doctor"
+    "ralph:doctor": "tsc -p tsconfig.ralph.json && node dist/ralph/cli.js doctor",
     "build:backend": "tsc -p tsconfig.backend.json",
     "check": "vp check",
-    "test": "vp test",
-    "preview": "vp preview"
+    "test": "vp test"
   },
   "dependencies": {
     "@hono/node-server": "^1.19.11",
@@ -35,7 +34,6 @@
   "devDependencies": {
     "@types/node": "^24.6.1",
     "@tailwindcss/postcss": "^4.2.2",
-    "@types/node": "^24.6.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
