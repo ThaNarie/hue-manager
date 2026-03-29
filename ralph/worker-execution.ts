@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { resolve, sep } from "node:path";
 
 import { getCursorWorkerScript, getIssueContext, renderCursorPrompt } from "./worker-cursor.js";
 import { commitFinalChanges, pushAndOpenOrReusePr, runQualityChecks } from "./worker-publish.js";
@@ -89,6 +89,7 @@ export function executeIssueWork(
     runCommand("git", ["worktree", "remove", "--force", worktreePath], { cwd: repoRoot });
     rmSync(worktreePath, { recursive: true, force: true });
   }
+  removeStaleIssueBranchWorktrees(repoRoot, issueBranch, runCommand);
 
   runOrThrow(
     runCommand,
@@ -174,6 +175,8 @@ function buildDockerRunArgs(
     "run",
     "--name",
     formatContainerName(input.runId),
+    "--entrypoint",
+    "sh",
     "--workdir",
     "/workspace",
     "--volume",
@@ -199,7 +202,7 @@ function buildDockerRunArgs(
     args.push("--env", `CURSOR_API_KEY=${cursorApiKey}`);
   }
 
-  args.push(input.workerImage, "sh", "-lc", getCursorWorkerScript());
+  args.push(input.workerImage, "-lc", getCursorWorkerScript());
   return args;
 }
 
@@ -230,4 +233,61 @@ function formatIssueBranchName(issueNumber: number): string {
 
 function formatContainerName(runId: string): string {
   return `ralph-${runId.toLowerCase().replace(/[^a-z0-9-]/g, "-")}`;
+}
+
+function removeStaleIssueBranchWorktrees(
+  repoRoot: string,
+  issueBranch: string,
+  runCommand: CommandRunner,
+): void {
+  const listResult = runCommand("git", ["worktree", "list", "--porcelain"], { cwd: repoRoot });
+  if (listResult.error) {
+    throw new Error(`failed to inspect existing worktrees: ${listResult.error.message}`);
+  }
+  if (listResult.status !== 0) {
+    throw new Error(`failed to inspect existing worktrees: ${listResult.stderr.trim()}`);
+  }
+
+  const ralphWorktreeRoot = resolve(repoRoot, ".ralph/worktrees");
+  for (const path of findWorktreePathsForBranch(listResult.stdout, issueBranch)) {
+    if (path !== ralphWorktreeRoot && !path.startsWith(`${ralphWorktreeRoot}${sep}`)) {
+      continue;
+    }
+    runCommand("git", ["worktree", "remove", "--force", path], { cwd: repoRoot });
+    rmSync(path, { recursive: true, force: true });
+  }
+}
+
+function findWorktreePathsForBranch(worktreeListOutput: string, issueBranch: string): string[] {
+  const branchRef = `refs/heads/${issueBranch}`;
+  const paths: string[] = [];
+
+  let activePath: string | undefined;
+  let activeBranch: string | undefined;
+  for (const line of worktreeListOutput.split("\n")) {
+    if (line.startsWith("worktree ")) {
+      if (activePath && activeBranch === branchRef) {
+        paths.push(activePath);
+      }
+      activePath = line.slice("worktree ".length).trim();
+      activeBranch = undefined;
+      continue;
+    }
+    if (line.startsWith("branch ")) {
+      activeBranch = line.slice("branch ".length).trim();
+      continue;
+    }
+    if (line.trim() === "") {
+      if (activePath && activeBranch === branchRef) {
+        paths.push(activePath);
+      }
+      activePath = undefined;
+      activeBranch = undefined;
+    }
+  }
+
+  if (activePath && activeBranch === branchRef) {
+    paths.push(activePath);
+  }
+  return paths;
 }

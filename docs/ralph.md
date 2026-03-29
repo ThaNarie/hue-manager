@@ -5,6 +5,7 @@ Ralph now supports end-to-end issue execution with deterministic selection, work
 ## Scripts
 
 - `vp run ralph:doctor`: validates required env vars and local tooling, then auto-creates missing lifecycle labels.
+- `vp run ralph:worker:build`: builds the dedicated Ralph worker image with Cursor CLI and `gh` preinstalled.
 - `vp run ralph:once`: runs one full cycle (select issue, execute worker, run checks, publish).
 - `vp run ralph:start`: runs the full cycle continuously using `loopIntervalMs` from `ralph.config.json`.
 
@@ -17,7 +18,7 @@ Non-secret config lives in `ralph.config.json`:
 - `repo`: GitHub repo in `owner/repo` format.
 - `loopIntervalMs`: loop interval used by `ralph:start`.
 - `baseBranch`: base branch for issue worktree and PR target.
-- `workerImage`: Docker image used to run the worker.
+- `workerImage`: Docker image used to run the worker (default: `hue-manager-ralph-worker:latest`).
 - `workerTimeoutMs`: hard timeout for a worker run.
 - `requiredLabels`: lifecycle labels `ralph:doctor` ensures exist.
 
@@ -27,7 +28,7 @@ For each claimed issue, Ralph performs this sequence:
 
 1. Creates an isolated git worktree and deterministic issue branch (`ralph/issue-XXXXXX`).
 2. Fetches issue context from GitHub and writes a prompt artifact.
-3. Runs Cursor CLI in Docker using non-interactive flags (`--force --print`).
+3. Runs Cursor CLI in Docker in headless mode (`agent -p --force --workspace /workspace --model gpt-5.3-codex ...`).
 4. Enforces quality gates before publishing:
    - `vp run build`
    - `vp test`
@@ -38,6 +39,21 @@ For each claimed issue, Ralph performs this sequence:
    - creates a new PR targeting `baseBranch`.
 
 Run artifacts are written under `.ralph/artifacts/<runId>/` (logs, manifest, prompt, and publish metadata).
+
+## Recommended worker image
+
+Ralph now includes a dedicated worker image at `ralph/worker-image/Dockerfile`:
+
+- Base: `node:22-bookworm` (glibc; compatible with Cursor CLI).
+- Preinstalled tools: `agent` (Cursor CLI), `gh`, `git`, `curl`, `jq`.
+
+Build it once before live runs:
+
+```sh
+vp run ralph:worker:build
+```
+
+This avoids per-run CLI installs and makes worker behavior deterministic.
 
 ## Required Secrets
 

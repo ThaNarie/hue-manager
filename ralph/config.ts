@@ -5,7 +5,7 @@ import type { RalphConfig, RalphLabelConfig } from "./types.js";
 
 const DEFAULT_LOOP_INTERVAL_MS = 60_000;
 const DEFAULT_BASE_BRANCH = "main";
-const DEFAULT_WORKER_IMAGE = "node:22-alpine";
+const DEFAULT_WORKER_IMAGE = "hue-manager-ralph-worker:latest";
 const DEFAULT_WORKER_TIMEOUT_MS = 15 * 60 * 1000;
 
 const DEFAULT_REQUIRED_LABELS: RalphLabelConfig[] = [

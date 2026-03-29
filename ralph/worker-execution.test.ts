@@ -125,8 +125,11 @@ describe("executeIssueWork", () => {
       commands.some(
         (command) =>
           command.startsWith(
-            `docker run --name ${containerName} --workdir /workspace --volume ${worktreePath}:/workspace --volume ${artifactPath}:/artifacts`,
-          ) && command.includes("agent -p --force --workspace /workspace --model gpt-5.3-codex"),
+            `docker run --name ${containerName} --entrypoint sh --workdir /workspace --volume ${worktreePath}:/workspace --volume ${artifactPath}:/artifacts`,
+          ) &&
+          command.includes(
+            "agent -p --force --trust --workspace /workspace --model gpt-5.3-codex --output-format stream-json --stream-partial-output",
+          ),
       ),
     ).toBe(true);
     expect(commands).toContain(`vp run build`);
@@ -190,5 +193,60 @@ describe("executeIssueWork", () => {
     expect(invocations.map((entry) => `${entry.command} ${entry.args.join(" ")}`)).toContain(
       `docker rm -f ${containerName}`,
     );
+  });
+
+  test("removes stale Ralph worktree already using issue branch", () => {
+    const repoRoot = createTempRepoRoot();
+    const runId = "issue-000025-run-0002";
+    const stalePath = resolve(repoRoot, ".ralph/worktrees", "issue-000025-run-0001");
+    const timeoutError = new Error("timed out") as NodeJS.ErrnoException;
+    timeoutError.code = "ETIMEDOUT";
+
+    const { invocations, run } = createRunner({
+      "gh issue view 25 --repo thanarie/hue-manager --json number,title,body": {
+        status: 0,
+        stdout: JSON.stringify({
+          number: 25,
+          title: "Stale worktree cleanup",
+          body: "",
+        }),
+        stderr: "",
+      },
+      "git worktree list --porcelain": {
+        status: 0,
+        stdout: [
+          `worktree ${stalePath}`,
+          "HEAD 4ad61de7c",
+          "branch refs/heads/ralph/issue-000025",
+          "",
+        ].join("\n"),
+        stderr: "",
+      },
+      "docker run *": {
+        status: null,
+        stdout: "",
+        stderr: "",
+        error: timeoutError,
+      },
+    });
+
+    expect(() =>
+      executeIssueWork(
+        {
+          repo: "thanarie/hue-manager",
+          issueNumber: 25,
+          runId,
+          baseBranch: "main",
+          workerImage: "node:22",
+          workerTimeoutMs: 1000,
+          repoRoot,
+        },
+        run,
+      ),
+    ).toThrow("worker timed out after 1000ms");
+
+    const commands = invocations.map((entry) => `${entry.command} ${entry.args.join(" ")}`);
+    expect(commands).toContain("git worktree list --porcelain");
+    expect(commands).toContain(`git worktree remove --force ${stalePath}`);
   });
 });

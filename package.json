@@ -10,6 +10,7 @@
     "build": "tsc && vp build",
     "preview": "vp preview",
     "ralph:build": "tsc -p tsconfig.ralph.json",
+    "ralph:worker:build": "docker build -f ralph/worker-image/Dockerfile -t hue-manager-ralph-worker:latest ralph/worker-image",
     "ralph:start": "tsc -p tsconfig.ralph.json && node dist/ralph/cli.js start",
     "ralph:once": "tsc -p tsconfig.ralph.json && node dist/ralph/cli.js once",
     "ralph:doctor": "tsc -p tsconfig.ralph.json && node dist/ralph/cli.js doctor",
