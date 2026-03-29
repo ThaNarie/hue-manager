@@ -7,6 +7,9 @@ export type RalphLabelConfig = {
 export type RalphConfig = {
   repo: string;
   loopIntervalMs: number;
+  baseBranch: string;
+  workerImage: string;
+  workerTimeoutMs: number;
   requiredLabels: RalphLabelConfig[];
 };
 

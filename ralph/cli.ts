@@ -12,6 +12,7 @@ import {
 import { pollIssuePlan } from "./issue-selection.js";
 import { RalphStateStore } from "./state-store.js";
 import type { RalphConfig } from "./types.js";
+import { executeIssueWork } from "./worker-execution.js";
 
 type ToolCheck = {
   name: string;
@@ -82,9 +83,17 @@ async function runOnce(config: RalphConfig, options: { dryRun: boolean }): Promi
 
         transitionIssueLifecycleLabel(config.repo, nextIssue.number, "ai:in-progress");
         console.log(`[Ralph] transitioned #${nextIssue.number} to ai:in-progress`);
+        stateStore.updateRunStatus(run.runId, "running");
+        console.log(`[Ralph] run ${run.runId} marked running`);
 
         try {
-          executeIssueWork(nextIssue.number);
+          executeIssueWork({
+            issueNumber: nextIssue.number,
+            runId: run.runId,
+            baseBranch: config.baseBranch,
+            workerImage: config.workerImage,
+            workerTimeoutMs: config.workerTimeoutMs,
+          });
           stateStore.updateRunStatus(run.runId, "succeeded");
           transitionIssueLifecycleLabel(config.repo, nextIssue.number, "ai:review");
           console.log(`[Ralph] transitioned #${nextIssue.number} to ai:review`);
@@ -106,10 +115,6 @@ async function runOnce(config: RalphConfig, options: { dryRun: boolean }): Promi
       "[Ralph] dry-run: no labels, assignments, branches, containers, or PRs were modified.",
     );
   }
-}
-
-function executeIssueWork(issueNumber: number): void {
-  throw new Error(`issue execution is not implemented for #${issueNumber}`);
 }
 
 async function runStart(config: RalphConfig, options: { dryRun: boolean }): Promise<void> {
@@ -163,6 +168,7 @@ async function runDoctor(config: RalphConfig): Promise<number> {
   const checks: ToolCheck[] = [
     checkTool("node", ["--version"], "Install Node.js 22+ and re-run doctor."),
     checkTool("git", ["--version"], "Install Git and ensure it is on PATH."),
+    checkTool("docker", ["--version"], "Install Docker and ensure it is on PATH."),
     checkTool(
       "gh",
       ["--version"],

@@ -1,6 +1,9 @@
 {
   "repo": "thanarie/hue-manager",
   "loopIntervalMs": 60000,
+  "baseBranch": "main",
+  "workerImage": "node:22-alpine",
+  "workerTimeoutMs": 900000,
   "requiredLabels": [
     {
       "name": "ai:ready",

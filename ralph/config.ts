@@ -4,6 +4,9 @@ import { resolve } from "node:path";
 import type { RalphConfig, RalphLabelConfig } from "./types.js";
 
 const DEFAULT_LOOP_INTERVAL_MS = 60_000;
+const DEFAULT_BASE_BRANCH = "main";
+const DEFAULT_WORKER_IMAGE = "node:22-alpine";
+const DEFAULT_WORKER_TIMEOUT_MS = 15 * 60 * 1000;
 
 const DEFAULT_REQUIRED_LABELS: RalphLabelConfig[] = [
   {
@@ -76,9 +79,12 @@ export function loadRalphConfig(
   }
 
   const loopIntervalMs = validateLoopInterval(parsed.loopIntervalMs, configPath);
+  const baseBranch = validateBaseBranch(parsed.baseBranch, configPath);
+  const workerImage = validateWorkerImage(parsed.workerImage, configPath);
+  const workerTimeoutMs = validateWorkerTimeout(parsed.workerTimeoutMs, configPath);
   const requiredLabels = validateLabels(parsed.requiredLabels, configPath);
 
-  return { repo, loopIntervalMs, requiredLabels };
+  return { repo, loopIntervalMs, baseBranch, workerImage, workerTimeoutMs, requiredLabels };
 }
 
 function validateLoopInterval(value: unknown, configPath: string): number {
@@ -89,6 +95,44 @@ function validateLoopInterval(value: unknown, configPath: string): number {
   if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
     throw new Error(
       `Invalid "loopIntervalMs" in ${configPath}. Use a positive integer number of milliseconds.`,
+    );
+  }
+
+  return value;
+}
+
+function validateBaseBranch(value: unknown, configPath: string): string {
+  if (value === undefined) {
+    return DEFAULT_BASE_BRANCH;
+  }
+
+  if (typeof value !== "string" || value.trim().length === 0) {
+    throw new Error(`Invalid "baseBranch" in ${configPath}. Use a non-empty branch name string.`);
+  }
+
+  return value.trim();
+}
+
+function validateWorkerImage(value: unknown, configPath: string): string {
+  if (value === undefined) {
+    return DEFAULT_WORKER_IMAGE;
+  }
+
+  if (typeof value !== "string" || value.trim().length === 0) {
+    throw new Error(`Invalid "workerImage" in ${configPath}. Use a non-empty image name string.`);
+  }
+
+  return value.trim();
+}
+
+function validateWorkerTimeout(value: unknown, configPath: string): number {
+  if (value === undefined) {
+    return DEFAULT_WORKER_TIMEOUT_MS;
+  }
+
+  if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
+    throw new Error(
+      `Invalid "workerTimeoutMs" in ${configPath}. Use a positive integer number of milliseconds.`,
     );
   }
 
