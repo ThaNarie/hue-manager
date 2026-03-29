@@ -4,16 +4,42 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vp dev",
+    "dev": "node scripts/dev.mjs",
+    "dev:frontend": "vp dev",
+    "dev:backend": "node --experimental-strip-types backend/server.ts",
     "build": "tsc && vp build",
     "preview": "vp preview",
     "ralph:build": "tsc -p tsconfig.ralph.json",
     "ralph:start": "tsc -p tsconfig.ralph.json && node dist/ralph/cli.js start",
     "ralph:once": "tsc -p tsconfig.ralph.json && node dist/ralph/cli.js once",
     "ralph:doctor": "tsc -p tsconfig.ralph.json && node dist/ralph/cli.js doctor"
+    "build:backend": "tsc -p tsconfig.backend.json",
+    "check": "vp check",
+    "test": "vp test",
+    "preview": "vp preview"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.19.11",
+    "@tailwindcss/vite": "^4.2.2",
+    "@tanstack/react-query": "^5.95.2",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "hono": "^4.12.9",
+    "lucide-react": "^1.7.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "tailwind-merge": "^3.5.0",
+    "tailwindcss": "^4.2.2",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "^24.6.1",
+    "@tailwindcss/postcss": "^4.2.2",
+    "@types/node": "^24.6.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "tailwindcss-animate": "^1.0.7",
     "typescript": "~5.9.3",
     "vite": "npm:@voidzero-dev/vite-plus-core@latest",
     "vite-plus": "latest"

@@ -35,8 +35,6 @@ When a component grows beyond ~150 lines or contains multiple sub-components:
 2. Move shared helpers/constants into a `*.utils.ts` file.
 3. Move shared hooks into a `*.hooks.ts` file or into `lib/` if used across features.
 
-
-
 # File Size & Decomposition (Hard Rules)
 
 - Do not add new features to any file over 300 lines.
