@@ -240,7 +240,6 @@ export function mapHueRuleToContract(
     lastTriggeredAt: parseHueRuleTimestamp(rule.lasttriggered),
   };
 }
-
 export function mapHueSceneToContract(
   sceneId: string,
   scene: HueV1Scene,

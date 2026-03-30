@@ -1,6 +1,7 @@
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { OverviewHealthResponseSchema } from "../shared/contracts/health.ts";
 import {
   AutomationsResponseSchema,
   AutomationMutationRequestSchema,
@@ -12,7 +13,6 @@ import {
   GroupsResponseSchema,
   type GroupsResponse,
 } from "../shared/contracts/groups.ts";
-import { OverviewHealthResponseSchema } from "../shared/contracts/health.ts";
 import {
   LightMutationRequestSchema,
   LightsResponseSchema,
