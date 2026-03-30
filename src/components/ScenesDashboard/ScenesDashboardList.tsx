@@ -5,6 +5,7 @@ import { DELETE_CONFIRMATION_TEXT } from "./ScenesDashboard.types";
 type ScenesDashboardListProps = {
   scenes: Scene[];
   pendingSceneIds: string[];
+  writesDisabled: boolean;
   onActivateScene: (sceneId: string) => void;
   onEditScene: (sceneId: string, name: string) => void;
   onDeleteScene: (sceneId: string) => void;
@@ -14,6 +15,7 @@ type ScenesDashboardListProps = {
 export function ScenesDashboardList({
   scenes,
   pendingSceneIds,
+  writesDisabled,
   onActivateScene,
   onEditScene,
   onDeleteScene,
@@ -45,7 +47,7 @@ export function ScenesDashboardList({
               onChange={(event) => {
                 setSelectedSceneIds(event.target.checked ? sceneIds : []);
               }}
-              disabled={sceneIds.length === 0}
+              disabled={sceneIds.length === 0 || writesDisabled}
             />
             <span>Select all scenes ({selectedSceneIds.length} selected)</span>
           </label>
@@ -63,7 +65,7 @@ export function ScenesDashboardList({
               onChange={(event) => {
                 setBulkDeleteConfirmationInput(event.target.value);
               }}
-              disabled={selectedSceneIds.length === 0}
+              disabled={selectedSceneIds.length === 0 || writesDisabled}
             />
           </label>
           <button
@@ -75,6 +77,7 @@ export function ScenesDashboardList({
               setBulkDeleteConfirmationInput("");
             }}
             disabled={
+              writesDisabled ||
               selectedSceneIds.length === 0 ||
               bulkDeleteConfirmationInput !== DELETE_CONFIRMATION_TEXT
             }
@@ -86,7 +89,7 @@ export function ScenesDashboardList({
 
       <ul className="space-y-2">
         {scenes.map((scene) => {
-          const isPending = pendingSceneIds.includes(scene.id);
+          const isPending = writesDisabled || pendingSceneIds.includes(scene.id);
           const isEditing = editingSceneId === scene.id;
           const isConfirmingDelete = confirmDeleteSceneId === scene.id;
 

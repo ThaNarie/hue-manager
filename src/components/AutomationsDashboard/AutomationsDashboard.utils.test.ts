@@ -20,6 +20,8 @@ const AUTOMATION_FIXTURES: Automation[] = [
     isEnabled: true,
     owner: "rest-api",
     lastTriggeredAt: "2026-03-30T06:00:00.000Z",
+    conditions: [],
+    actions: [],
   },
   {
     id: "9",
@@ -28,6 +30,8 @@ const AUTOMATION_FIXTURES: Automation[] = [
     isEnabled: false,
     owner: null,
     lastTriggeredAt: null,
+    conditions: [],
+    actions: [],
   },
   {
     id: "4",
@@ -36,6 +40,8 @@ const AUTOMATION_FIXTURES: Automation[] = [
     isEnabled: true,
     owner: "hue-app",
     lastTriggeredAt: "2026-03-29T23:00:00.000Z",
+    conditions: [],
+    actions: [],
   },
 ];
 

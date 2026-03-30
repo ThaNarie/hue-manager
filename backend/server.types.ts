@@ -43,6 +43,16 @@ export type HueV1Rule = {
   status?: "enabled" | "disabled";
   owner?: string;
   lasttriggered?: string;
+  conditions?: Array<{
+    address?: string;
+    operator?: string;
+    value?: string;
+  }>;
+  actions?: Array<{
+    address?: string;
+    method?: "PUT" | "POST" | "DELETE";
+    body?: Record<string, unknown>;
+  }>;
 };
 
 export type HueV1RulesResponse = Record<string, HueV1Rule>;

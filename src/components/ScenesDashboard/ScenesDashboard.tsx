@@ -18,6 +18,7 @@ export function ScenesDashboard() {
     draft,
     editScene,
     error,
+    isBridgeOffline,
     isLoading,
     isRefreshing,
     pendingSceneIds,
@@ -48,7 +49,7 @@ export function ScenesDashboard() {
       <CardContent className="space-y-4">
         <ScenesDashboardForm
           draft={draft}
-          disabled={creatingScene}
+          disabled={creatingScene || isBridgeOffline}
           onDraftChange={setDraft}
           onCreateScene={createScene}
         />
@@ -56,6 +57,11 @@ export function ScenesDashboard() {
         {error ? (
           <p className="rounded-md border border-red-500/40 bg-red-950/20 px-3 py-2 text-sm text-red-200">
             Unable to load scenes: {error.message}
+          </p>
+        ) : null}
+        {isBridgeOffline ? (
+          <p className="rounded-md border border-amber-500/40 bg-amber-950/20 px-3 py-2 text-sm text-amber-100">
+            Bridge offline. Scene write actions are disabled until reconnect.
           </p>
         ) : null}
 
@@ -69,6 +75,7 @@ export function ScenesDashboard() {
           <ScenesDashboardList
             scenes={sortedScenes}
             pendingSceneIds={pendingSceneIds}
+            writesDisabled={isBridgeOffline}
             onActivateScene={activateScene}
             onEditScene={editScene}
             onDeleteScene={deleteScene}

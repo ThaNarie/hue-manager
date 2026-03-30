@@ -17,6 +17,7 @@ import {
   getMutationError,
   mapHueSceneToContract,
 } from "./server.utils.ts";
+import { createAutomaticPrewriteSnapshot, registerBackupRoutes } from "./server.backups.ts";
 
 async function parseHueMutationResponse(response: Response): Promise<HueV1MutationResult[] | null> {
   const payload = (await response.json().catch(() => null)) as HueV1MutationResult[] | null;
@@ -27,6 +28,8 @@ async function parseHueMutationResponse(response: Response): Promise<HueV1Mutati
 }
 
 export function registerSceneRoutes(app: Hono) {
+  registerBackupRoutes(app);
+
   app.get("/api/scenes", async (context) => {
     const scenesResult = await fetchHueJson<HueV1ScenesResponse>("/scenes");
     if (!scenesResult.ok) {
@@ -54,6 +57,10 @@ export function registerSceneRoutes(app: Hono) {
     const baseUrl = getHueBaseUrl();
     if (!baseUrl) {
       return context.json({ message: HUE_NOT_CONFIGURED_MESSAGE }, 500);
+    }
+    const snapshotResult = await createAutomaticPrewriteSnapshot("scenes:create");
+    if (!snapshotResult.ok) {
+      return context.json({ message: snapshotResult.message }, snapshotResult.status);
     }
 
     const createResponse = await fetch(`${baseUrl}/scenes`, {
@@ -115,6 +122,10 @@ export function registerSceneRoutes(app: Hono) {
     const baseUrl = getHueBaseUrl();
     if (!baseUrl) {
       return context.json({ message: HUE_NOT_CONFIGURED_MESSAGE }, 500);
+    }
+    const snapshotResult = await createAutomaticPrewriteSnapshot("scenes:update");
+    if (!snapshotResult.ok) {
+      return context.json({ message: snapshotResult.message }, snapshotResult.status);
     }
 
     const patchResponse = await fetch(`${baseUrl}/scenes/${encodeURIComponent(sceneId)}`, {
@@ -197,6 +208,10 @@ export function registerSceneRoutes(app: Hono) {
     const baseUrl = getHueBaseUrl();
     if (!baseUrl) {
       return context.json({ message: HUE_NOT_CONFIGURED_MESSAGE }, 500);
+    }
+    const snapshotResult = await createAutomaticPrewriteSnapshot("scenes:delete");
+    if (!snapshotResult.ok) {
+      return context.json({ message: snapshotResult.message }, snapshotResult.status);
     }
 
     const deleteResponse = await fetch(`${baseUrl}/scenes/${encodeURIComponent(sceneId)}`, {

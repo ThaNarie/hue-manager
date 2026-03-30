@@ -1,6 +1,8 @@
 import type { Automation } from "../../../shared/contracts/automations";
 import type {
   AutomationFilters,
+  AutomationGuidedDraft,
+  AutomationGuidedDraftErrors,
   AutomationSortOption,
   AutomationStatusFilter,
   SavedAutomationView,
@@ -184,4 +186,79 @@ export function replaceAutomationById(
   return automations.map((automation) =>
     automation.id === nextAutomation.id ? nextAutomation : automation,
   );
+}
+
+export function getInitialAutomationGuidedDraft(): AutomationGuidedDraft {
+  return {
+    name: "",
+    isEnabled: true,
+    conditionAddress: "/sensors/1/state/status",
+    conditionOperator: "eq",
+    conditionValue: "1",
+    actionAddress: "/groups/0/action",
+    actionMethod: "PUT",
+    actionBodyText: '{"on": true}',
+    confirmDestructive: false,
+    explicitDangerousToken: "",
+  };
+}
+
+export function getGuidedDraftFromAutomation(automation: Automation): AutomationGuidedDraft {
+  const firstCondition = automation.conditions[0];
+  const firstAction = automation.actions[0];
+  return {
+    name: automation.name,
+    isEnabled: automation.isEnabled,
+    conditionAddress: firstCondition?.address ?? "",
+    conditionOperator: firstCondition?.operator ?? "eq",
+    conditionValue: firstCondition?.value ?? "",
+    actionAddress: firstAction?.address ?? "",
+    actionMethod: firstAction?.method ?? "PUT",
+    actionBodyText: JSON.stringify(firstAction?.body ?? {}, null, 2),
+    confirmDestructive: false,
+    explicitDangerousToken: "",
+  };
+}
+
+export function validateAutomationGuidedDraft(draft: AutomationGuidedDraft): {
+  errors: AutomationGuidedDraftErrors;
+  actionBody: Record<string, unknown> | null;
+} {
+  const errors: AutomationGuidedDraftErrors = {};
+  if (draft.name.trim().length === 0) {
+    errors.name = "Automation name is required.";
+  } else if (draft.name.trim().length > 32) {
+    errors.name = "Automation name must be 32 characters or fewer.";
+  }
+  if (draft.conditionAddress.trim().length === 0) {
+    errors.conditionAddress = "Condition address is required.";
+  }
+  if (draft.conditionOperator.trim().length === 0) {
+    errors.conditionOperator = "Condition operator is required.";
+  }
+  if (draft.conditionValue.trim().length === 0) {
+    errors.conditionValue = "Condition value is required.";
+  }
+  if (draft.actionAddress.trim().length === 0) {
+    errors.actionAddress = "Action address is required.";
+  }
+
+  let parsedActionBody: unknown = null;
+  try {
+    parsedActionBody = JSON.parse(draft.actionBodyText) as unknown;
+  } catch {
+    parsedActionBody = null;
+  }
+  const isValidActionBody =
+    typeof parsedActionBody === "object" &&
+    parsedActionBody !== null &&
+    !Array.isArray(parsedActionBody);
+  if (!isValidActionBody) {
+    errors.actionBodyText = "Action body must be a JSON object.";
+  }
+
+  return {
+    errors,
+    actionBody: isValidActionBody ? (parsedActionBody as Record<string, unknown>) : null,
+  };
 }
