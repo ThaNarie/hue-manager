@@ -28,6 +28,7 @@ import {
 } from "./LightsDashboard.utils";
 import { useLightSavedViews } from "./LightsDashboard.savedViews";
 import { useBridgeWriteGate } from "../OverviewHealthCard/OverviewHealthCard.hooks";
+import { rollbackOptimisticQueryData } from "../../lib/optimisticRollback";
 
 const LIGHTS_QUERY_KEY = ["lights-dashboard"] as const;
 const DESTRUCTIVE_CONFIRM_WINDOW_MS = 8_000;
@@ -145,9 +146,7 @@ export function useLightsDashboard() {
       });
     },
     onError: (error, _input, context) => {
-      if (context?.previousData) {
-        queryClient.setQueryData(LIGHTS_QUERY_KEY, context.previousData);
-      }
+      rollbackOptimisticQueryData(queryClient, LIGHTS_QUERY_KEY, context?.previousData);
       const lightId = context?.lightId;
       if (lightId) {
         setLightErrors((current) => ({

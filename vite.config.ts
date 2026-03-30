@@ -6,6 +6,9 @@ import { fileURLToPath, URL } from "node:url";
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   lint: { options: { typeAware: true, typeCheck: true } },
+  test: {
+    exclude: ["**/node_modules/**", "tests/smoke/**"],
+  },
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
