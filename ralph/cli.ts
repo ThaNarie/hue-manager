@@ -4,15 +4,10 @@ import process from "node:process";
 import { loadRalphConfig } from "./config.js";
 import { getMissingSecrets, loadSecrets } from "./env.js";
 import { runGh } from "./github.js";
-import {
-  claimIssue,
-  getAuthenticatedActorLogin,
-  transitionIssueLifecycleLabel,
-} from "./issue-lifecycle.js";
 import { pollIssuePlan } from "./issue-selection.js";
-import { RalphStateStore } from "./state-store.js";
+import { runEligibleIssue } from "./issue-runner.js";
+import { runParallelScheduler } from "./parallel-scheduler.js";
 import type { RalphConfig } from "./types.js";
-import { executeIssueWork } from "./worker-execution.js";
 
 type ToolCheck = {
   name: string;
@@ -51,64 +46,12 @@ async function runOnce(config: RalphConfig, options: { dryRun: boolean }): Promi
   loadSecrets();
 
   const plan = pollIssuePlan(config.repo);
-  const stateStore = new RalphStateStore();
-  try {
-    const mode = options.dryRun ? "dry-run" : "live";
-    console.log(`[Ralph] once (${mode}): polled ${config.repo}`);
-    printPlan(plan);
-    const nextIssue = plan.eligible[0];
-
-    if (nextIssue) {
-      if (options.dryRun) {
-        const previewRunId = stateStore.peekNextRunId(nextIssue.number);
-        console.log(
-          `[Ralph] dry-run: next run id for #${nextIssue.number} would be ${previewRunId}`,
-        );
-      } else {
-        const actorLogin = getAuthenticatedActorLogin();
-        const claimResult = claimIssue(config.repo, nextIssue.number, actorLogin);
-        if (claimResult.status !== "claimed") {
-          console.log(
-            `[Ralph] skipped #${nextIssue.number}: could not claim issue (${claimResult.reason}).`,
-          );
-          return;
-        }
-        console.log(`[Ralph] claimed #${nextIssue.number} as ${actorLogin}`);
-
-        const run = stateStore.createRunAttempt({
-          issueNumber: nextIssue.number,
-          triggerType: "poll",
-        });
-        console.log(`[Ralph] created run ${run.runId} for #${nextIssue.number}`);
-
-        transitionIssueLifecycleLabel(config.repo, nextIssue.number, "ai:in-progress");
-        console.log(`[Ralph] transitioned #${nextIssue.number} to ai:in-progress`);
-        stateStore.updateRunStatus(run.runId, "running");
-        console.log(`[Ralph] run ${run.runId} marked running`);
-
-        try {
-          executeIssueWork({
-            repo: config.repo,
-            issueNumber: nextIssue.number,
-            runId: run.runId,
-            baseBranch: config.baseBranch,
-            workerImage: config.workerImage,
-            workerTimeoutMs: config.workerTimeoutMs,
-          });
-          stateStore.updateRunStatus(run.runId, "succeeded");
-          transitionIssueLifecycleLabel(config.repo, nextIssue.number, "ai:review");
-          console.log(`[Ralph] transitioned #${nextIssue.number} to ai:review`);
-        } catch (error) {
-          const failureReason = error instanceof Error ? error.message : String(error);
-          stateStore.updateRunStatus(run.runId, "failed", { failureReason });
-          transitionIssueLifecycleLabel(config.repo, nextIssue.number, "ai:failed");
-          console.log(`[Ralph] transitioned #${nextIssue.number} to ai:failed`);
-          console.error(`[Ralph] run ${run.runId} failed: ${failureReason}`);
-        }
-      }
-    }
-  } finally {
-    stateStore.close();
+  const mode = options.dryRun ? "dry-run" : "live";
+  console.log(`[Ralph] once (${mode}): polled ${config.repo}`);
+  printPlan(plan);
+  const nextIssue = plan.eligible[0];
+  if (nextIssue) {
+    runEligibleIssue(config, nextIssue, options);
   }
 
   if (options.dryRun) {
@@ -129,20 +72,14 @@ async function runStart(config: RalphConfig, options: { dryRun: boolean }): Prom
     stopping = true;
   });
 
-  while (!stopping) {
-    const startedAt = new Date().toISOString();
-    console.log(`[Ralph] tick ${startedAt}`);
-    try {
-      await runOnce(config, options);
-    } catch (error) {
-      console.error(
-        `[Ralph] tick failed: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
-    if (!stopping) {
-      await sleep(config.loopIntervalMs);
-    }
-  }
+  await runParallelScheduler(
+    config,
+    { dryRun: options.dryRun, shouldStop: () => stopping },
+    {
+      pollIssuePlan,
+      runEligibleIssue,
+    },
+  );
 
   console.log("[Ralph] stopped.");
 }
@@ -290,12 +227,6 @@ function checkTool(name: string, args: string[], guidance: string): ToolCheck {
     ok: true,
     details: (result.stdout || result.stderr).trim(),
   };
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
 }
 
 void main();

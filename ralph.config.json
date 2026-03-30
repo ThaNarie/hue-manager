@@ -1,6 +1,9 @@
 {
   "repo": "thanarie/hue-manager",
   "loopIntervalMs": 60000,
+  "maxWorkers": 2,
+  "idleBackoffMaxMs": 300000,
+  "idleBackoffJitterMs": 250,
   "baseBranch": "main",
   "workerImage": "hue-manager-ralph-worker:latest",
   "workerTimeoutMs": 900000,

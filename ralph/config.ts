@@ -4,6 +4,9 @@ import { resolve } from "node:path";
 import type { RalphConfig, RalphLabelConfig } from "./types.js";
 
 const DEFAULT_LOOP_INTERVAL_MS = 60_000;
+const DEFAULT_MAX_WORKERS = 1;
+const DEFAULT_IDLE_BACKOFF_MAX_MS = 5 * 60_000;
+const DEFAULT_IDLE_BACKOFF_JITTER_MS = 250;
 const DEFAULT_BASE_BRANCH = "main";
 const DEFAULT_WORKER_IMAGE = "hue-manager-ralph-worker:latest";
 const DEFAULT_WORKER_TIMEOUT_MS = 15 * 60 * 1000;
@@ -79,12 +82,29 @@ export function loadRalphConfig(
   }
 
   const loopIntervalMs = validateLoopInterval(parsed.loopIntervalMs, configPath);
+  const maxWorkers = validateMaxWorkers(parsed.maxWorkers, configPath);
+  const idleBackoffMaxMs = validateIdleBackoffMax(
+    parsed.idleBackoffMaxMs,
+    loopIntervalMs,
+    configPath,
+  );
+  const idleBackoffJitterMs = validateIdleBackoffJitter(parsed.idleBackoffJitterMs, configPath);
   const baseBranch = validateBaseBranch(parsed.baseBranch, configPath);
   const workerImage = validateWorkerImage(parsed.workerImage, configPath);
   const workerTimeoutMs = validateWorkerTimeout(parsed.workerTimeoutMs, configPath);
   const requiredLabels = validateLabels(parsed.requiredLabels, configPath);
 
-  return { repo, loopIntervalMs, baseBranch, workerImage, workerTimeoutMs, requiredLabels };
+  return {
+    repo,
+    loopIntervalMs,
+    maxWorkers,
+    idleBackoffMaxMs,
+    idleBackoffJitterMs,
+    baseBranch,
+    workerImage,
+    workerTimeoutMs,
+    requiredLabels,
+  };
 }
 
 function validateLoopInterval(value: unknown, configPath: string): number {
@@ -96,6 +116,48 @@ function validateLoopInterval(value: unknown, configPath: string): number {
     throw new Error(
       `Invalid "loopIntervalMs" in ${configPath}. Use a positive integer number of milliseconds.`,
     );
+  }
+
+  return value;
+}
+
+function validateMaxWorkers(value: unknown, configPath: string): number {
+  if (value === undefined) {
+    return DEFAULT_MAX_WORKERS;
+  }
+
+  if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
+    throw new Error(`Invalid "maxWorkers" in ${configPath}. Use a positive integer.`);
+  }
+
+  return value;
+}
+
+function validateIdleBackoffMax(
+  value: unknown,
+  loopIntervalMs: number,
+  configPath: string,
+): number {
+  if (value === undefined) {
+    return Math.max(loopIntervalMs, DEFAULT_IDLE_BACKOFF_MAX_MS);
+  }
+
+  if (typeof value !== "number" || !Number.isInteger(value) || value < loopIntervalMs) {
+    throw new Error(
+      `Invalid "idleBackoffMaxMs" in ${configPath}. Use an integer >= loopIntervalMs.`,
+    );
+  }
+
+  return value;
+}
+
+function validateIdleBackoffJitter(value: unknown, configPath: string): number {
+  if (value === undefined) {
+    return DEFAULT_IDLE_BACKOFF_JITTER_MS;
+  }
+
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
+    throw new Error(`Invalid "idleBackoffJitterMs" in ${configPath}. Use a non-negative integer.`);
   }
 
   return value;
