@@ -13,7 +13,8 @@ export function App() {
           Hue Manager Overview
         </h1>
         <p className="text-muted-foreground">
-          Tracer bullet: React frontend + Hono backend + shared Zod contract validation.
+          Tracer bullet: React frontend + Hono backend + shared Zod contract
+          validation.
         </p>
       </header>
 

@@ -79,6 +79,9 @@ export function useAuditActivity() {
     queryKey: AUDIT_EVENTS_QUERY_KEY,
     queryFn: requestAuditEvents,
     staleTime: 10_000,
+    retry: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
   const [retentionInput, setRetentionInput] = useState("90");
   const retentionMutation = useMutation({
@@ -100,7 +103,8 @@ export function useAuditActivity() {
   useEffect(() => {
     const retentionDays = query.data?.retentionDays;
     if (typeof retentionDays === "number") {
-      setRetentionInput(String(retentionDays));
+      const nextValue = String(retentionDays);
+      setRetentionInput((current) => (current === nextValue ? current : nextValue));
     }
   }, [query.data?.retentionDays]);
 

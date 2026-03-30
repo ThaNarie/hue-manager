@@ -61,10 +61,18 @@ async function readStore(): Promise<AuditStore> {
     events: maybeStore.events,
   });
 
-  return writeStore({
+  const nextStore = applyRetention({
     retentionDays: normalized.retentionDays,
     events: normalized.events,
   });
+
+  const retentionChanged = parsed.retentionDays !== nextStore.retentionDays;
+  const eventsChanged = JSON.stringify(parsed.events ?? []) !== JSON.stringify(nextStore.events);
+  if (retentionChanged || eventsChanged) {
+    return writeStore(nextStore);
+  }
+
+  return nextStore;
 }
 
 export async function listAuditEvents(): Promise<AuditEventsResponse> {
