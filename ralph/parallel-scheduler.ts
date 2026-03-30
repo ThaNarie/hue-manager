@@ -1,10 +1,17 @@
 import type { PollPlan, EligibleIssue } from "./issue-selection.js";
 import type { RalphConfig } from "./types.js";
+import type { CommentRerunTrigger } from "./comment-reruns.js";
 
 type PollIssuePlanFn = (repo: string) => PollPlan;
+type PollCommentRerunTriggersFn = (repo: string) => CommentRerunTrigger[];
 type RunEligibleIssueFn = (
   config: RalphConfig,
   issue: EligibleIssue,
+  options: { dryRun: boolean },
+) => void | Promise<void>;
+type RunCommentTriggeredIssueFn = (
+  config: RalphConfig,
+  trigger: CommentRerunTrigger,
   options: { dryRun: boolean },
 ) => void | Promise<void>;
 type SleepFn = (ms: number) => Promise<void>;
@@ -14,7 +21,9 @@ type ErrorLogger = (message: string) => void;
 
 export type ParallelSchedulerDeps = {
   pollIssuePlan: PollIssuePlanFn;
+  pollCommentRerunTriggers: PollCommentRerunTriggersFn;
   runEligibleIssue: RunEligibleIssueFn;
+  runCommentTriggeredIssue: RunCommentTriggeredIssueFn;
   sleep: SleepFn;
   jitter: JitterFn;
   log: Logger;
@@ -27,7 +36,9 @@ export async function runParallelScheduler(
   deps: Partial<ParallelSchedulerDeps> = {},
 ): Promise<void> {
   const poll = deps.pollIssuePlan ?? (() => ({ eligible: [], ineligible: [] }));
+  const pollCommentReruns = deps.pollCommentRerunTriggers ?? (() => []);
   const runIssue = deps.runEligibleIssue ?? (() => undefined);
+  const runCommentTriggeredIssue = deps.runCommentTriggeredIssue ?? (() => undefined);
   const sleepFn = deps.sleep ?? defaultSleep;
   const jitter = deps.jitter ?? Math.random;
   const log = deps.log ?? ((message: string) => console.log(message));
@@ -41,15 +52,44 @@ export async function runParallelScheduler(
     log(`[Ralph] tick ${startedAt}`);
 
     let plan: PollPlan;
+    let commentTriggers: CommentRerunTrigger[];
     try {
       plan = poll(config.repo);
+      commentTriggers = pollCommentReruns(config.repo);
     } catch (caught) {
       error(`[Ralph] tick failed: ${caught instanceof Error ? caught.message : String(caught)}`);
       await sleepFn(config.loopIntervalMs);
       continue;
     }
 
-    const availableSlots = Math.max(0, config.maxWorkers - activeWorkers.size);
+    let availableSlots = Math.max(0, config.maxWorkers - activeWorkers.size);
+    const launchableCommentTriggers = [...commentTriggers]
+      .sort((a, b) => {
+        if (a.issueNumber !== b.issueNumber) {
+          return a.issueNumber - b.issueNumber;
+        }
+        return a.commentId - b.commentId;
+      })
+      .filter((trigger) => !activeWorkers.has(trigger.issueNumber))
+      .slice(0, availableSlots);
+
+    for (const trigger of launchableCommentTriggers) {
+      const promise = Promise.resolve()
+        .then(() => runCommentTriggeredIssue(config, trigger, { dryRun: options.dryRun }))
+        .catch((caught) => {
+          error(
+            `[Ralph] scheduler worker #${trigger.issueNumber} crashed: ${
+              caught instanceof Error ? caught.message : String(caught)
+            }`,
+          );
+        })
+        .finally(() => {
+          activeWorkers.delete(trigger.issueNumber);
+        });
+      activeWorkers.set(trigger.issueNumber, promise);
+    }
+
+    availableSlots = Math.max(0, config.maxWorkers - activeWorkers.size);
     const eligibleSorted = [...plan.eligible].sort((a, b) => a.number - b.number);
     const launchableIssues = eligibleSorted
       .filter((issue) => !activeWorkers.has(issue.number))
@@ -71,8 +111,8 @@ export async function runParallelScheduler(
       activeWorkers.set(issue.number, promise);
     }
 
-    const hasEligibleWork = eligibleSorted.length > 0;
-    if (hasEligibleWork) {
+    const hasReadyWork = eligibleSorted.length > 0 || commentTriggers.length > 0;
+    if (hasReadyWork) {
       idleCycles = 0;
     }
 
@@ -81,13 +121,13 @@ export async function runParallelScheduler(
     }
 
     const delayMs = computeNextDelayMs(config, {
-      hasEligibleWork,
+      hasEligibleWork: hasReadyWork,
       hasActiveWorkers: activeWorkers.size > 0,
       idleCycles,
       jitter,
     });
 
-    if (!hasEligibleWork && activeWorkers.size === 0) {
+    if (!hasReadyWork && activeWorkers.size === 0) {
       idleCycles += 1;
     }
 

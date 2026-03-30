@@ -104,6 +104,61 @@ export class RalphStateStore {
     }
   }
 
+  createCommentTriggeredRunAttempt(issueNumber: number, commentId: number): RunAttempt | null {
+    const now = new Date().toISOString();
+
+    this.db.exec("BEGIN IMMEDIATE TRANSACTION");
+    try {
+      const cursor = this.getCommentCursorForUpdate(issueNumber);
+      if (commentId <= cursor) {
+        this.db.exec("COMMIT");
+        return null;
+      }
+
+      const attempt = this.nextAttemptNumber(issueNumber);
+      const runId = formatRunId(issueNumber, attempt);
+      this.db
+        .prepare(
+          `
+            INSERT INTO run_attempts (
+              run_id,
+              issue_number,
+              attempt,
+              trigger_type,
+              trigger_comment_id,
+              status,
+              created_at,
+              updated_at
+            )
+            VALUES (?, ?, ?, 'comment', ?, 'queued', ?, ?)
+          `,
+        )
+        .run(runId, issueNumber, attempt, commentId, now, now);
+
+      this.db
+        .prepare(
+          `
+            INSERT INTO issue_comment_cursors (
+              issue_number,
+              last_comment_id,
+              updated_at
+            )
+            VALUES (?, ?, ?)
+            ON CONFLICT(issue_number) DO UPDATE SET
+              last_comment_id = excluded.last_comment_id,
+              updated_at = excluded.updated_at
+          `,
+        )
+        .run(issueNumber, commentId, now);
+
+      this.db.exec("COMMIT");
+      return this.getRunAttempt(runId);
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
+  }
+
   advanceCommentCursor(issueNumber: number, observedCommentIds: number[]): number {
     if (observedCommentIds.length === 0) {
       return this.getCommentCursor(issueNumber);
@@ -221,6 +276,19 @@ export class RalphStateStore {
       )
       .get(issueNumber) as NextAttemptRow;
     return row.next_attempt;
+  }
+
+  private getCommentCursorForUpdate(issueNumber: number): number {
+    const row = this.db
+      .prepare(
+        `
+          SELECT last_comment_id
+          FROM issue_comment_cursors
+          WHERE issue_number = ?
+        `,
+      )
+      .get(issueNumber) as CursorRow | undefined;
+    return row?.last_comment_id ?? 0;
   }
 
   private initializeSchema(): void {

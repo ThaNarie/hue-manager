@@ -5,7 +5,8 @@ import { loadRalphConfig } from "./config.js";
 import { getMissingSecrets, loadSecrets } from "./env.js";
 import { runGh } from "./github.js";
 import { pollIssuePlan } from "./issue-selection.js";
-import { runEligibleIssue } from "./issue-runner.js";
+import { pollCommentRerunTriggers } from "./comment-reruns.js";
+import { runCommentTriggeredIssue, runEligibleIssue } from "./issue-runner.js";
 import { runParallelScheduler } from "./parallel-scheduler.js";
 import type { RalphConfig } from "./types.js";
 
@@ -46,12 +47,18 @@ async function runOnce(config: RalphConfig, options: { dryRun: boolean }): Promi
   loadSecrets();
 
   const plan = pollIssuePlan(config.repo);
+  const rerunTriggers = pollCommentRerunTriggers(config.repo);
   const mode = options.dryRun ? "dry-run" : "live";
   console.log(`[Ralph] once (${mode}): polled ${config.repo}`);
   printPlan(plan);
-  const nextIssue = plan.eligible[0];
-  if (nextIssue) {
-    runEligibleIssue(config, nextIssue, options);
+  const nextTrigger = rerunTriggers[0];
+  if (nextTrigger) {
+    runCommentTriggeredIssue(config, nextTrigger, options);
+  } else {
+    const nextIssue = plan.eligible[0];
+    if (nextIssue) {
+      runEligibleIssue(config, nextIssue, options);
+    }
   }
 
   if (options.dryRun) {
@@ -77,7 +84,9 @@ async function runStart(config: RalphConfig, options: { dryRun: boolean }): Prom
     { dryRun: options.dryRun, shouldStop: () => stopping },
     {
       pollIssuePlan,
+      pollCommentRerunTriggers,
       runEligibleIssue,
+      runCommentTriggeredIssue,
     },
   );
 

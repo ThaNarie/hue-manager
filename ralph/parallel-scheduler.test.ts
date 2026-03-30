@@ -131,4 +131,41 @@ describe("runParallelScheduler", () => {
 
     expect(delays).toEqual([105, 205, 100]);
   });
+
+  test("prioritizes comment-triggered reruns before regular eligible polling", async () => {
+    const config = createConfig({ maxWorkers: 1 });
+    const started: string[] = [];
+    let stop = false;
+
+    await runParallelScheduler(
+      config,
+      { dryRun: false, shouldStop: () => stop },
+      {
+        pollIssuePlan: () => ({
+          eligible: [{ number: 11, title: "ready", dependencies: [] }],
+          ineligible: [],
+        }),
+        pollCommentRerunTriggers: () => [
+          {
+            issueNumber: 9,
+            issueTitle: "failed",
+            commentId: 420,
+            command: "retry",
+          },
+        ],
+        runCommentTriggeredIssue: async (_cfg, trigger) => {
+          started.push(`comment:${trigger.issueNumber}:${trigger.commentId}`);
+        },
+        runEligibleIssue: async (_cfg, issue) => {
+          started.push(`poll:${issue.number}`);
+        },
+        sleep: async () => {
+          stop = true;
+        },
+        jitter: () => 0,
+      },
+    );
+
+    expect(started).toEqual(["comment:9:420"]);
+  });
 });
