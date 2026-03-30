@@ -20,6 +20,7 @@ import type {
   HueV1Rule,
   HueV1RulesResponse,
 } from "./server.types.ts";
+import { registerSceneRoutes } from "./server.scenes.ts";
 import {
   HUE_NOT_CONFIGURED_MESSAGE,
   buildGroupMaps,
@@ -204,6 +205,7 @@ app.patch("/api/automations/:automationId", async (context) => {
   const payload = AutomationMutationResponseSchema.parse({ automation });
   return context.json(payload);
 });
+registerSceneRoutes(app);
 
 app.notFound((context) => context.json({ message: "Not found" }, 404));
 

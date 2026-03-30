@@ -1,9 +1,11 @@
 import type { OverviewHealthResponse } from "../shared/contracts/health.ts";
 import type { AutomationsResponse } from "../shared/contracts/automations.ts";
 import type { LightGroup, LightType, LightsResponse } from "../shared/contracts/lights.ts";
+import type { ScenesResponse } from "../shared/contracts/scenes.ts";
 import type {
   HueV1GroupsResponse,
   HueV1Light,
+  HueV1Scene,
   HueV1MutationResult,
   HueV1Rule,
 } from "./server.types.ts";
@@ -100,6 +102,19 @@ function parseLastUpdated(input: string | undefined): string {
   return parsed.toISOString();
 }
 
+function parseHueLastUpdated(input: string | undefined): string {
+  if (!input) {
+    return new Date().toISOString();
+  }
+
+  const normalized = /z$/i.test(input) ? input : `${input}Z`;
+  const parsed = new Date(normalized);
+  if (Number.isNaN(parsed.getTime())) {
+    return new Date().toISOString();
+  }
+  return parsed.toISOString();
+}
+
 export function buildGroupMaps(groups: HueV1GroupsResponse) {
   const roomsByLightId: Record<string, LightGroup> = {};
   const zonesByLightId: Record<string, LightGroup> = {};
@@ -169,6 +184,19 @@ export function mapHueRuleToContract(
   };
 }
 
+export function mapHueSceneToContract(
+  sceneId: string,
+  scene: HueV1Scene,
+): ScenesResponse["scenes"][number] {
+  return {
+    id: sceneId,
+    name: scene.name ?? `Scene ${sceneId}`,
+    groupId: scene.group ?? null,
+    isLocked: Boolean(scene.locked),
+    lastUpdatedAt: parseHueLastUpdated(scene.lastupdated),
+  };
+}
+
 export function getOverviewHealth(): OverviewHealthResponse {
   const now = new Date();
   const tenSecondsAgo = new Date(now.getTime() - 10_000);
@@ -201,4 +229,18 @@ export function getMutationError(
     message: firstError.description ?? "Hue Bridge rejected the mutation.",
     status: firstError.type === 3 ? 404 : 502,
   };
+}
+
+export function getCreatedResourceId(mutationPayload: HueV1MutationResult[]): string | null {
+  for (const entry of mutationPayload) {
+    if (!entry.success) {
+      continue;
+    }
+    const candidate = (entry.success.id ?? "") as string;
+    if (typeof candidate === "string" && candidate.length > 0) {
+      return candidate;
+    }
+  }
+
+  return null;
 }

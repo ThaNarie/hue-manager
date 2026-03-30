@@ -20,6 +20,15 @@ export type HueV1Group = {
 
 export type HueV1GroupsResponse = Record<string, HueV1Group>;
 
+export type HueV1Scene = {
+  name?: string;
+  group?: string;
+  locked?: boolean;
+  lastupdated?: string;
+};
+
+export type HueV1ScenesResponse = Record<string, HueV1Scene>;
+
 export type HueV1MutationResult = {
   success?: Record<string, unknown>;
   error?: {
