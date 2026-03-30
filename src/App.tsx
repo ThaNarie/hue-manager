@@ -1,3 +1,4 @@
+import { AuditActivity } from "./components/AuditActivity/AuditActivity";
 import { OverviewHealthCard } from "./components/OverviewHealthCard/OverviewHealthCard";
 import { LightsDashboard } from "./components/LightsDashboard/LightsDashboard";
 
@@ -15,6 +16,7 @@ export function App() {
 
       <OverviewHealthCard />
       <LightsDashboard />
+      <AuditActivity />
     </main>
   );
 }

@@ -58,10 +58,7 @@ describe("reconcileStartupRuns", () => {
       stateStore: store,
       getContainerSnapshot: () => ({
         running: new Set([`ralph-${active.runId}`]),
-        all: new Set([
-          `ralph-${active.runId}`,
-          `ralph-${orphanedStopped.runId}`,
-        ]),
+        all: new Set([`ralph-${active.runId}`, `ralph-${orphanedStopped.runId}`]),
       }),
       transitionIssueLifecycleLabel: (_repo, issueNumber, label) => {
         transitions.push({ issueNumber, label });
