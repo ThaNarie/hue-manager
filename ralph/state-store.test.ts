@@ -81,4 +81,23 @@ describe("RalphStateStore", () => {
     expect(failed.failureReason).toBe("quality checks failed");
     closeAndCleanup();
   });
+
+  test("consumes command comments once while creating deterministic rerun attempts", () => {
+    const { store, closeAndCleanup, dbPath } = createStore();
+    const first = store.createCommentTriggeredRunAttempt(23, 1201);
+    const duplicate = store.createCommentTriggeredRunAttempt(23, 1201);
+    const second = store.createCommentTriggeredRunAttempt(23, 1202);
+    closeAndCleanup();
+
+    const reopened = new RalphStateStore(dbPath);
+    const afterRestartDuplicate = reopened.createCommentTriggeredRunAttempt(23, 1202);
+    reopened.close();
+
+    expect(first?.runId).toBe("issue-000023-run-0001");
+    expect(first?.triggerCommentId).toBe(1201);
+    expect(first?.triggerType).toBe("comment");
+    expect(duplicate).toBeNull();
+    expect(second?.runId).toBe("issue-000023-run-0002");
+    expect(afterRestartDuplicate).toBeNull();
+  });
 });
