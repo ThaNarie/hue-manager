@@ -8,7 +8,10 @@ import {
   formatLightUpdatedAt,
   getInitialLightFilters,
   matchesSearchQuery,
+  parseSavedLightViews,
+  removeSavedLightView,
   replaceLightById,
+  upsertSavedLightView,
 } from "./LightsDashboard.utils";
 import { UNASSIGNED_ZONE_FILTER } from "./LightsDashboard.types";
 
@@ -124,5 +127,38 @@ describe("LightsDashboard.utils", () => {
     const updatedLights = replaceLightById(LIGHT_FIXTURES, replacement);
     expect(updatedLights.find((light) => light.id === "a1")?.brightness).toBe(12);
     expect(updatedLights.find((light) => light.id === "b2")?.brightness).toBe(0);
+  });
+
+  test("parses saved views from storage payload", () => {
+    const parsed = parseSavedLightViews(
+      JSON.stringify([
+        {
+          name: "Kitchen only",
+          filters: {
+            searchQuery: "kitchen",
+            roomId: "room-kitchen",
+            zoneId: "",
+            sort: "name-asc",
+          },
+        },
+      ]),
+    );
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0]?.name).toBe("Kitchen only");
+  });
+
+  test("upserts and removes saved views by name", () => {
+    const first = upsertSavedLightView([], {
+      name: "Evening",
+      filters: { ...getInitialLightFilters(), searchQuery: "evening" },
+    });
+    const second = upsertSavedLightView(first, {
+      name: "evening",
+      filters: { ...getInitialLightFilters(), searchQuery: "night" },
+    });
+
+    expect(second).toHaveLength(1);
+    expect(second[0]?.filters.searchQuery).toBe("night");
+    expect(removeSavedLightView(second, "Evening")).toHaveLength(0);
   });
 });

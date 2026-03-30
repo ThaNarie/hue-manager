@@ -15,6 +15,11 @@ export type AutomationFilters = {
   sort: AutomationSortOption;
 };
 
+export type SavedAutomationView = {
+  name: string;
+  filters: AutomationFilters;
+};
+
 export type AutomationMutationInput = {
   automationId: string;
   patch: AutomationMutationRequest;
@@ -50,6 +55,21 @@ export type AutomationGuidedDraftField =
   | "explicitDangerousToken";
 
 export type AutomationGuidedDraftErrors = Partial<Record<AutomationGuidedDraftField, string>>;
+
+export type AutomationEditorVariant = "guided" | "json";
+
+export type AutomationJsonDraft = {
+  payloadText: string;
+  confirmDestructive: boolean;
+  explicitDangerousToken: string;
+};
+
+export type AutomationJsonDraftField =
+  | "payloadText"
+  | "confirmDestructive"
+  | "explicitDangerousToken";
+
+export type AutomationJsonDraftErrors = Partial<Record<AutomationJsonDraftField, string>>;
 
 export type AutomationControlErrorMap = Record<string, string>;
 

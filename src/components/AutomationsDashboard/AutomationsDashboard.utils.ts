@@ -1,11 +1,18 @@
 import type { Automation } from "../../../shared/contracts/automations";
+import { parseAutomationMutationRequest } from "../../../shared/contracts/automations";
+import type { AutomationMutationRequest } from "../../../shared/contracts/automations";
 import type {
   AutomationFilters,
   AutomationGuidedDraft,
   AutomationGuidedDraftErrors,
+  AutomationJsonDraft,
+  AutomationJsonDraftErrors,
   AutomationSortOption,
   AutomationStatusFilter,
+  SavedAutomationView,
 } from "./AutomationsDashboard.types";
+
+export const AUTOMATION_SAVED_VIEWS_STORAGE_KEY = "hue-manager:automations:saved-views";
 
 export const AUTOMATION_SORT_OPTIONS: Array<{ value: AutomationSortOption; label: string }> = [
   { value: "name-asc", label: "Name (A-Z)" },
@@ -29,6 +36,71 @@ export function getInitialAutomationFilters(): AutomationFilters {
     status: "all",
     sort: "name-asc",
   };
+}
+
+export function parseSavedAutomationViews(rawValue: string | null): SavedAutomationView[] {
+  if (!rawValue) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(rawValue);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed
+      .filter((candidate): candidate is SavedAutomationView => {
+        if (!candidate || typeof candidate !== "object") {
+          return false;
+        }
+        const view = candidate as Partial<SavedAutomationView>;
+        return (
+          typeof view.name === "string" &&
+          typeof view.filters?.searchQuery === "string" &&
+          typeof view.filters?.status === "string" &&
+          typeof view.filters?.sort === "string"
+        );
+      })
+      .map((view) => ({
+        name: view.name,
+        filters: { ...view.filters },
+      }));
+  } catch {
+    return [];
+  }
+}
+
+export function upsertSavedAutomationView(
+  views: SavedAutomationView[],
+  nextView: SavedAutomationView,
+): SavedAutomationView[] {
+  const nextName = nextView.name.trim();
+  if (!nextName) {
+    return views;
+  }
+
+  const normalizedName = nextName.toLowerCase();
+  const remainingViews = views.filter((view) => view.name.toLowerCase() !== normalizedName);
+  return [
+    ...remainingViews,
+    {
+      name: nextName,
+      filters: { ...nextView.filters },
+    },
+  ];
+}
+
+export function removeSavedAutomationView(
+  views: SavedAutomationView[],
+  viewName: string,
+): SavedAutomationView[] {
+  const normalizedName = viewName.trim().toLowerCase();
+  if (!normalizedName) {
+    return views;
+  }
+
+  return views.filter((view) => view.name.toLowerCase() !== normalizedName);
 }
 
 function compareBySort(left: Automation, right: Automation, sort: AutomationSortOption): number {
@@ -193,4 +265,70 @@ export function validateAutomationGuidedDraft(draft: AutomationGuidedDraft): {
     errors,
     actionBody: isValidActionBody ? (parsedActionBody as Record<string, unknown>) : null,
   };
+}
+
+export function getInitialAutomationJsonDraft(): AutomationJsonDraft {
+  return {
+    payloadText: JSON.stringify(
+      { name: "", isEnabled: true, conditions: [], actions: [] },
+      null,
+      2,
+    ),
+    confirmDestructive: false,
+    explicitDangerousToken: "",
+  };
+}
+
+export function getJsonDraftFromAutomation(automation: Automation): AutomationJsonDraft {
+  return {
+    payloadText: JSON.stringify(
+      {
+        name: automation.name,
+        isEnabled: automation.isEnabled,
+        conditions: automation.conditions,
+        actions: automation.actions,
+      },
+      null,
+      2,
+    ),
+    confirmDestructive: false,
+    explicitDangerousToken: "",
+  };
+}
+
+function getReadableSchemaError(error: unknown): string {
+  if (
+    error &&
+    typeof error === "object" &&
+    "issues" in error &&
+    Array.isArray((error as { issues?: unknown[] }).issues)
+  ) {
+    const firstIssue = (error as { issues: Array<{ message?: unknown }> }).issues[0];
+    if (firstIssue && typeof firstIssue.message === "string") {
+      return firstIssue.message;
+    }
+  }
+  return "Payload does not satisfy automation mutation schema.";
+}
+
+export function validateAutomationJsonDraft(draft: AutomationJsonDraft): {
+  errors: AutomationJsonDraftErrors;
+  payload: AutomationMutationRequest | null;
+} {
+  const errors: AutomationJsonDraftErrors = {};
+  let parsedJson: unknown = null;
+  try {
+    parsedJson = JSON.parse(draft.payloadText) as unknown;
+  } catch {
+    errors.payloadText = "Payload must be valid JSON.";
+    return { errors, payload: null };
+  }
+
+  try {
+    const payload = parseAutomationMutationRequest(parsedJson);
+    return { errors, payload };
+  } catch (error) {
+    errors.payloadText = getReadableSchemaError(error);
+    return { errors, payload: null };
+  }
 }

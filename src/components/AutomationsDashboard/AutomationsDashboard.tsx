@@ -2,9 +2,11 @@ import { Card } from "../ui/Card/Card";
 import { CardContent } from "../ui/Card/CardContent";
 import { CardHeader } from "../ui/Card/CardHeader";
 import { CardTitle } from "../ui/Card/CardTitle";
+import { SavedViewControls } from "../SavedViewControls/SavedViewControls";
 import { useAutomationsDashboard } from "./AutomationsDashboard.hooks";
 import { AutomationsDashboardEditor } from "./AutomationsDashboardEditor";
 import { AutomationsDashboardFilters } from "./AutomationsDashboardFilters";
+import { AutomationsDashboardJsonEditor } from "./AutomationsDashboardJsonEditor";
 import { AutomationsDashboardList } from "./AutomationsDashboardList";
 import { AutomationsDashboardToasts } from "./AutomationsDashboardToasts";
 
@@ -12,8 +14,10 @@ export function AutomationsDashboard() {
   const {
     automationErrors,
     automations,
+    bulkEnableFilteredAutomations,
     dismissToast,
     error,
+    editorVariant,
     filters,
     filteredAutomations,
     isBridgeOffline,
@@ -21,18 +25,34 @@ export function AutomationsDashboard() {
     isSavingGuidedAutomation,
     isRefreshing,
     guidedMode,
+    jsonApiError,
+    jsonDraft,
+    jsonDraftErrors,
     onCancelGuidedEdit,
     onSubmitGuidedAutomation,
+    onSubmitJsonAutomation,
     requiredGuidedSafetyAction,
+    requiredJsonSafetyAction,
     guidedDraft,
     guidedDraftErrors,
     pendingAutomationIds,
     refresh,
+    setEditorVariant,
+    saveCurrentView,
+    savedViewDraftName,
+    savedViews,
+    selectedSavedViewName,
     setGuidedDraft,
+    setJsonDraft,
     toasts,
     startGuidedEdit,
+    startJsonEdit,
     updateAutomation,
     updateFilters,
+    applySelectedSavedView,
+    deleteSelectedSavedView,
+    setSavedViewDraftName,
+    setSelectedSavedViewName,
   } = useAutomationsDashboard();
 
   return (
@@ -54,16 +74,74 @@ export function AutomationsDashboard() {
       </CardHeader>
 
       <CardContent className="space-y-4">
-        <AutomationsDashboardEditor
-          draft={guidedDraft}
-          errors={guidedDraftErrors}
-          mode={guidedMode}
-          pending={isSavingGuidedAutomation}
-          requiredSafetyAction={requiredGuidedSafetyAction}
-          onDraftChange={setGuidedDraft}
-          onSubmit={onSubmitGuidedAutomation}
-          onCancelEdit={onCancelGuidedEdit}
+        <SavedViewControls
+          title="Saved automation views"
+          saveLabel="Save current view"
+          namePlaceholder="Disabled by owner"
+          savedViews={savedViews.map((view) => view.name)}
+          draftName={savedViewDraftName}
+          selectedViewName={selectedSavedViewName}
+          onDraftNameChange={setSavedViewDraftName}
+          onSelectedViewNameChange={setSelectedSavedViewName}
+          onSave={saveCurrentView}
+          onApply={applySelectedSavedView}
+          onDelete={deleteSelectedSavedView}
         />
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            className={`rounded-md border px-2 py-1 text-xs transition ${
+              editorVariant === "guided"
+                ? "border-slate-500 text-slate-100"
+                : "border-border text-muted-foreground hover:text-foreground"
+            }`}
+            onClick={() => {
+              setEditorVariant("guided");
+            }}
+            disabled={isSavingGuidedAutomation}
+          >
+            Guided mode
+          </button>
+          <button
+            type="button"
+            className={`rounded-md border px-2 py-1 text-xs transition ${
+              editorVariant === "json"
+                ? "border-slate-500 text-slate-100"
+                : "border-border text-muted-foreground hover:text-foreground"
+            }`}
+            onClick={() => {
+              setEditorVariant("json");
+            }}
+            disabled={isSavingGuidedAutomation}
+          >
+            Advanced JSON mode
+          </button>
+        </div>
+
+        {editorVariant === "guided" ? (
+          <AutomationsDashboardEditor
+            draft={guidedDraft}
+            errors={guidedDraftErrors}
+            mode={guidedMode}
+            pending={isSavingGuidedAutomation}
+            requiredSafetyAction={requiredGuidedSafetyAction}
+            onDraftChange={setGuidedDraft}
+            onSubmit={onSubmitGuidedAutomation}
+            onCancelEdit={onCancelGuidedEdit}
+          />
+        ) : (
+          <AutomationsDashboardJsonEditor
+            draft={jsonDraft}
+            errors={jsonDraftErrors}
+            pending={isSavingGuidedAutomation}
+            requiredSafetyAction={requiredJsonSafetyAction}
+            apiError={jsonApiError}
+            onDraftChange={setJsonDraft}
+            onSubmit={onSubmitJsonAutomation}
+            onCancelEdit={onCancelGuidedEdit}
+          />
+        )}
 
         <AutomationsDashboardFilters filters={filters} onUpdateFilters={updateFilters} />
 
@@ -84,6 +162,17 @@ export function AutomationsDashboard() {
           </p>
         </div>
 
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={bulkEnableFilteredAutomations}
+            className="rounded-md border border-border px-2 py-1 text-xs font-medium text-slate-100 transition hover:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={filteredAutomations.length === 0}
+          >
+            Enable all filtered
+          </button>
+        </div>
+
         {isLoading ? (
           <p className="text-sm text-slate-300">Loading automations...</p>
         ) : filteredAutomations.length === 0 ? (
@@ -96,6 +185,7 @@ export function AutomationsDashboard() {
             writesDisabled={isBridgeOffline}
             onUpdateAutomation={updateAutomation}
             onEditAutomation={startGuidedEdit}
+            onEditAutomationJson={startJsonEdit}
           />
         )}
       </CardContent>

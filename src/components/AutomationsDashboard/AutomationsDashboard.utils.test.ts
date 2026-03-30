@@ -4,9 +4,14 @@ import {
   applyOptimisticAutomationPatch,
   filterAndSortAutomations,
   formatAutomationTriggeredAt,
+  getJsonDraftFromAutomation,
   getInitialAutomationFilters,
   matchesAutomationSearchQuery,
+  parseSavedAutomationViews,
+  removeSavedAutomationView,
   replaceAutomationById,
+  validateAutomationJsonDraft,
+  upsertSavedAutomationView,
 } from "./AutomationsDashboard.utils";
 
 const AUTOMATION_FIXTURES: Automation[] = [
@@ -91,5 +96,79 @@ describe("AutomationsDashboard.utils", () => {
     const updated = replaceAutomationById(AUTOMATION_FIXTURES, replacement);
     expect(updated.find((automation) => automation.id === "9")?.owner).toBe("bridge");
     expect(updated.find((automation) => automation.id === "4")?.owner).toBe("hue-app");
+  });
+
+  test("loads existing automation payload into json draft", () => {
+    const jsonDraft = getJsonDraftFromAutomation(AUTOMATION_FIXTURES[0]);
+    const parsed = JSON.parse(jsonDraft.payloadText) as {
+      name: string;
+      isEnabled: boolean;
+      conditions: unknown[];
+      actions: unknown[];
+    };
+    expect(parsed.name).toBe("Kitchen wake up");
+    expect(parsed.isEnabled).toBe(true);
+    expect(parsed.conditions).toEqual([]);
+    expect(parsed.actions).toEqual([]);
+  });
+
+  test("validates json draft schema and surfaces errors", () => {
+    const invalid = validateAutomationJsonDraft({
+      payloadText: "{invalid",
+      confirmDestructive: false,
+      explicitDangerousToken: "",
+    });
+    expect(invalid.payload).toBeNull();
+    expect(invalid.errors.payloadText).toBe("Payload must be valid JSON.");
+
+    const schemaInvalid = validateAutomationJsonDraft({
+      payloadText: JSON.stringify({ name: " " }),
+      confirmDestructive: false,
+      explicitDangerousToken: "",
+    });
+    expect(schemaInvalid.payload).toBeNull();
+    expect(schemaInvalid.errors.payloadText).toBeDefined();
+
+    const valid = validateAutomationJsonDraft({
+      payloadText: JSON.stringify({
+        name: "Rule",
+        actions: [{ address: "/x", method: "PUT", body: {} }],
+      }),
+      confirmDestructive: false,
+      explicitDangerousToken: "",
+    });
+    expect(valid.payload?.name).toBe("Rule");
+  });
+
+  test("parses saved automation views from storage payload", () => {
+    const parsed = parseSavedAutomationViews(
+      JSON.stringify([
+        {
+          name: "Disabled only",
+          filters: {
+            searchQuery: "",
+            status: "disabled",
+            sort: "name-asc",
+          },
+        },
+      ]),
+    );
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0]?.filters.status).toBe("disabled");
+  });
+
+  test("upserts and removes saved automation views by name", () => {
+    const first = upsertSavedAutomationView([], {
+      name: "Ops",
+      filters: { ...getInitialAutomationFilters(), status: "enabled" },
+    });
+    const second = upsertSavedAutomationView(first, {
+      name: "ops",
+      filters: { ...getInitialAutomationFilters(), status: "disabled" },
+    });
+
+    expect(second).toHaveLength(1);
+    expect(second[0]?.filters.status).toBe("disabled");
+    expect(removeSavedAutomationView(second, "Ops")).toHaveLength(0);
   });
 });
