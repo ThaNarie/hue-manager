@@ -1,5 +1,6 @@
 import { OverviewHealthCard } from "./components/OverviewHealthCard/OverviewHealthCard";
 import { LightsDashboard } from "./components/LightsDashboard/LightsDashboard";
+import { ScenesDashboard } from "./components/ScenesDashboard/ScenesDashboard";
 
 export function App() {
   return (
@@ -15,6 +16,7 @@ export function App() {
 
       <OverviewHealthCard />
       <LightsDashboard />
+      <ScenesDashboard />
     </main>
   );
 }

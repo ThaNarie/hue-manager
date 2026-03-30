@@ -1,9 +1,7 @@
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import {
-  OverviewHealthResponseSchema,
-} from "../shared/contracts/health.ts";
+import { OverviewHealthResponseSchema } from "../shared/contracts/health.ts";
 import {
   LightMutationRequestSchema,
   LightsResponseSchema,
@@ -15,6 +13,7 @@ import type {
   HueV1LightsResponse,
   HueV1MutationResult,
 } from "./server.types.ts";
+import { registerSceneRoutes } from "./server.scenes.ts";
 import {
   HUE_NOT_CONFIGURED_MESSAGE,
   buildGroupMaps,
@@ -128,6 +127,8 @@ app.patch("/api/lights/:lightId", async (context) => {
   const light = mapHueLightToContract(lightId, lightResult.data, groupMaps);
   return context.json({ light });
 });
+
+registerSceneRoutes(app);
 
 app.notFound((context) => context.json({ message: "Not found" }, 404));
 
