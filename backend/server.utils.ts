@@ -1,10 +1,6 @@
 import type { OverviewHealthResponse } from "../shared/contracts/health.ts";
 import type { LightGroup, LightType, LightsResponse } from "../shared/contracts/lights.ts";
-import type {
-  HueV1GroupsResponse,
-  HueV1Light,
-  HueV1MutationResult,
-} from "./server.types.ts";
+import type { HueV1GroupsResponse, HueV1Light, HueV1MutationResult } from "./server.types.ts";
 
 const hueHost = process.env.HUE_HOST;
 const huePath = process.env.HUE_PATH;
@@ -174,4 +170,3 @@ export function getMutationError(
     status: firstError.type === 3 ? 404 : 502,
   };
 }
-

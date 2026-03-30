@@ -1,14 +1,18 @@
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import {
-  OverviewHealthResponseSchema,
-} from "../shared/contracts/health.ts";
+import { OverviewHealthResponseSchema } from "../shared/contracts/health.ts";
 import {
   LightMutationRequestSchema,
   LightsResponseSchema,
   type LightsResponse,
 } from "../shared/contracts/lights.ts";
+import {
+  SAFETY_APPROVAL_ACTION_HEADER,
+  SAFETY_APPROVAL_TOKEN_HEADER,
+  isLightMutationSafetyApprovalValid,
+  type LightMutationSafetyApproval,
+} from "../shared/safety/lightMutationSafetyPolicy.ts";
 import type {
   HueV1GroupsResponse,
   HueV1Light,
@@ -69,6 +73,19 @@ app.patch("/api/lights/:lightId", async (context) => {
   const parsedBody = LightMutationRequestSchema.safeParse(body);
   if (!parsedBody.success) {
     return context.json({ message: "Invalid light mutation payload" }, 400);
+  }
+
+  const safetyActionHeader = context.req.header(SAFETY_APPROVAL_ACTION_HEADER);
+  const safetyTokenHeader = context.req.header(SAFETY_APPROVAL_TOKEN_HEADER);
+  const safetyApproval: LightMutationSafetyApproval | null =
+    safetyActionHeader === "confirm" || safetyActionHeader === "explicit"
+      ? {
+          action: safetyActionHeader,
+          token: safetyTokenHeader,
+        }
+      : null;
+  if (!isLightMutationSafetyApprovalValid(parsedBody.data, safetyApproval)) {
+    return context.json({ message: "Safety policy rejected this light mutation." }, 403);
   }
 
   const statePayload: { on?: boolean; bri?: number } = {};

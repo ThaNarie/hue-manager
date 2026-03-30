@@ -14,6 +14,11 @@ import {
   type LightsDashboardData,
 } from "./LightsDashboard.types";
 import {
+  SAFETY_APPROVAL_ACTION_HEADER,
+  SAFETY_APPROVAL_TOKEN_HEADER,
+  getLightMutationSafetyAction,
+} from "../../../shared/safety/lightMutationSafetyPolicy";
+import {
   applyOptimisticLightPatch,
   buildRoomOptions,
   buildZoneOptions,
@@ -23,6 +28,12 @@ import {
 } from "./LightsDashboard.utils";
 
 const LIGHTS_QUERY_KEY = ["lights-dashboard"] as const;
+const DESTRUCTIVE_CONFIRM_WINDOW_MS = 8_000;
+
+type PendingSafetyConfirmation = {
+  key: string;
+  expiresAt: number;
+};
 
 async function requestLights() {
   const response = await fetch("/api/lights");
@@ -35,11 +46,19 @@ async function requestLights() {
 }
 
 async function requestLightMutation(input: LightMutationInput) {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (input.approval) {
+    headers[SAFETY_APPROVAL_ACTION_HEADER] = input.approval.action;
+    if (input.approval.token) {
+      headers[SAFETY_APPROVAL_TOKEN_HEADER] = input.approval.token;
+    }
+  }
+
   const response = await fetch(`/api/lights/${encodeURIComponent(input.lightId)}`, {
     method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers,
     body: JSON.stringify(parseLightMutationRequest(input.patch)),
   });
   const payload = await response.json().catch(() => null);
@@ -61,6 +80,8 @@ export function useLightsDashboard() {
   const [filters, setFilters] = useState<LightFilters>(getInitialLightFilters);
   const [lightErrors, setLightErrors] = useState<LightControlErrorMap>({});
   const [pendingLightIds, setPendingLightIds] = useState<string[]>([]);
+  const [pendingSafetyConfirmation, setPendingSafetyConfirmation] =
+    useState<PendingSafetyConfirmation | null>(null);
   const [toasts, setToasts] = useState<DashboardToast[]>([]);
   const queryClient = useQueryClient();
   const query = useQuery({
@@ -161,7 +182,46 @@ export function useLightsDashboard() {
   }
 
   function updateLight(lightId: string, patch: LightMutationInput["patch"]) {
-    mutation.mutate({ lightId, patch });
+    const now = Date.now();
+    const requiredAction = getLightMutationSafetyAction(patch);
+
+    if (requiredAction === "confirm") {
+      const confirmationKey = `${lightId}:${JSON.stringify(patch)}`;
+      if (
+        !pendingSafetyConfirmation ||
+        pendingSafetyConfirmation.key !== confirmationKey ||
+        pendingSafetyConfirmation.expiresAt < now
+      ) {
+        setPendingSafetyConfirmation({
+          key: confirmationKey,
+          expiresAt: now + DESTRUCTIVE_CONFIRM_WINDOW_MS,
+        });
+        setToasts((current) => [
+          ...current,
+          {
+            id: crypto.randomUUID(),
+            message: "Repeat this action to confirm the destructive mutation.",
+          },
+        ]);
+        return;
+      }
+      setPendingSafetyConfirmation(null);
+      mutation.mutate({ lightId, patch, approval: { action: "confirm" } });
+      return;
+    }
+
+    if (requiredAction === "explicit") {
+      setToasts((current) => [
+        ...current,
+        {
+          id: crypto.randomUUID(),
+          message: "Dangerous mutation blocked: explicit approval token is required.",
+        },
+      ]);
+      return;
+    }
+
+    mutation.mutate({ lightId, patch, approval: null });
   }
 
   function dismissToast(toastId: string) {
