@@ -24,6 +24,7 @@ import {
   isLightMutationSafetyApprovalValid,
   type LightMutationSafetyApproval,
 } from "../shared/safety/lightMutationSafetyPolicy.ts";
+import { shouldSnapshotLightMutation } from "../shared/safety/backupSnapshotPolicy.ts";
 import type {
   HueV1Group,
   HueV1GroupsResponse,
@@ -34,6 +35,7 @@ import type {
   HueV1RulesResponse,
 } from "./server.types.ts";
 import { registerSceneRoutes } from "./server.scenes.ts";
+import { createAutomaticPrewriteSnapshot } from "./server.backups.ts";
 import {
   HUE_NOT_CONFIGURED_MESSAGE,
   buildGroupMaps,
@@ -123,6 +125,12 @@ app.patch("/api/lights/:lightId", async (context) => {
   if (!isLightMutationSafetyApprovalValid(parsedBody.data, safetyApproval)) {
     return context.json({ message: "Safety policy rejected this light mutation." }, 403);
   }
+  if (shouldSnapshotLightMutation(parsedBody.data)) {
+    const snapshotResult = await createAutomaticPrewriteSnapshot("lights:destructive-mutation");
+    if (!snapshotResult.ok) {
+      return context.json({ message: snapshotResult.message }, snapshotResult.status);
+    }
+  }
 
   const statePayload: { on?: boolean; bri?: number } = {};
   if (parsedBody.data.isOn !== undefined) {
@@ -140,6 +148,10 @@ app.patch("/api/lights/:lightId", async (context) => {
   const baseUrl = getHueBaseUrl();
   if (!baseUrl) {
     return context.json({ message: HUE_NOT_CONFIGURED_MESSAGE }, 500);
+  }
+  const snapshotResult = await createAutomaticPrewriteSnapshot("groups:mutation");
+  if (!snapshotResult.ok) {
+    return context.json({ message: snapshotResult.message }, snapshotResult.status);
   }
 
   const mutationResponse = await fetch(`${baseUrl}/lights/${encodeURIComponent(lightId)}/state`, {
@@ -218,6 +230,10 @@ app.patch("/api/groups/:groupKind/:groupId", async (context) => {
   const baseUrl = getHueBaseUrl();
   if (!baseUrl) {
     return context.json({ message: HUE_NOT_CONFIGURED_MESSAGE }, 500);
+  }
+  const snapshotResult = await createAutomaticPrewriteSnapshot("automations:mutation");
+  if (!snapshotResult.ok) {
+    return context.json({ message: snapshotResult.message }, snapshotResult.status);
   }
 
   const mutationResponse = await fetch(`${baseUrl}/groups/${encodeURIComponent(groupId)}`, {

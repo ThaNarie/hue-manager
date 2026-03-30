@@ -3,6 +3,7 @@ import { AutomationsDashboard } from "./components/AutomationsDashboard/Automati
 import { OverviewHealthCard } from "./components/OverviewHealthCard/OverviewHealthCard";
 import { LightsDashboard } from "./components/LightsDashboard/LightsDashboard";
 import { ScenesDashboard } from "./components/ScenesDashboard/ScenesDashboard";
+import { BackupsDashboard } from "./components/BackupsDashboard/BackupsDashboard";
 
 export function App() {
   return (
@@ -17,6 +18,7 @@ export function App() {
       </header>
 
       <OverviewHealthCard />
+      <BackupsDashboard />
       <AutomationsDashboard />
       <LightsDashboard />
       <ScenesDashboard />
