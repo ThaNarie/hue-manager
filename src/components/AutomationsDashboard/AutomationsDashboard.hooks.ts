@@ -28,6 +28,7 @@ import {
   validateAutomationGuidedDraft,
 } from "./AutomationsDashboard.utils";
 import { useBridgeWriteGate } from "../OverviewHealthCard/OverviewHealthCard.hooks";
+import { rollbackOptimisticQueryData } from "../../lib/optimisticRollback";
 
 const AUTOMATIONS_QUERY_KEY = ["automations-dashboard"] as const;
 
@@ -116,9 +117,7 @@ export function useAutomationsDashboard() {
       }
     },
     onError: (error, _input, context) => {
-      if (context?.previousData) {
-        queryClient.setQueryData(AUTOMATIONS_QUERY_KEY, context.previousData);
-      }
+      rollbackOptimisticQueryData(queryClient, AUTOMATIONS_QUERY_KEY, context?.previousData);
       const automationId = context?.automationId;
       if (automationId) {
         setAutomationErrors((current) => ({
