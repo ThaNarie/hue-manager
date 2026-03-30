@@ -12,18 +12,15 @@ export type CommandResult = {
   stderr: string;
   error?: NodeJS.ErrnoException;
 };
-
 export type CommandRunner = (
   command: string,
   args: string[],
   options?: CommandOptions,
 ) => CommandResult;
-
 export type CommandOptions = {
   cwd?: string;
   timeoutMs?: number;
 };
-
 export type ExecuteIssueWorkInput = {
   repo: string;
   issueNumber: number;
@@ -149,6 +146,7 @@ export function executeIssueWork(
     runOrThrow,
   );
   writeFileSync(resolve(artifactPath, "publish.json"), JSON.stringify({ commitSha, prUrl }));
+  removePublishedWorktree(repoRoot, worktreePath, runCommand);
 
   return { issueBranch, worktreePath, artifactPath, containerName, prUrl };
 }
@@ -250,7 +248,6 @@ function removeStaleIssueBranchWorktrees(
   if (listResult.status !== 0) {
     throw new Error(`failed to inspect existing worktrees: ${listResult.stderr.trim()}`);
   }
-
   const ralphWorktreeRoot = resolve(repoRoot, ".ralph/worktrees");
   for (const path of findWorktreePathsForBranch(listResult.stdout, issueBranch)) {
     if (path !== ralphWorktreeRoot && !path.startsWith(`${ralphWorktreeRoot}${sep}`)) {
@@ -261,12 +258,19 @@ function removeStaleIssueBranchWorktrees(
   }
 }
 
+function removePublishedWorktree(
+  repoRoot: string,
+  worktreePath: string,
+  runCommand: CommandRunner,
+): void {
+  runCommand("git", ["worktree", "remove", "--force", worktreePath], { cwd: repoRoot });
+  rmSync(worktreePath, { recursive: true, force: true });
+}
+
 function findWorktreePathsForBranch(worktreeListOutput: string, issueBranch: string): string[] {
   const branchRef = `refs/heads/${issueBranch}`;
   const paths: string[] = [];
-
-  let activePath: string | undefined;
-  let activeBranch: string | undefined;
+  let activePath: string | undefined, activeBranch: string | undefined;
   for (const line of worktreeListOutput.split("\n")) {
     if (line.startsWith("worktree ")) {
       if (activePath && activeBranch === branchRef) {
@@ -288,7 +292,6 @@ function findWorktreePathsForBranch(worktreeListOutput: string, issueBranch: str
       activeBranch = undefined;
     }
   }
-
   if (activePath && activeBranch === branchRef) {
     paths.push(activePath);
   }

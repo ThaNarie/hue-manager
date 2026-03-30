@@ -157,6 +157,7 @@ describe("executeIssueWork", () => {
     expect(commands).toContain(`git -C ${worktreePath} add -A`);
     expect(commands).toContain(`git -C ${worktreePath} commit -m chore(ralph): implement #25`);
     expect(commands).toContain(`git -C ${worktreePath} push -u origin ralph/issue-000025`);
+    expect(commands).toContain(`git worktree remove --force ${worktreePath}`);
 
     expect(readFileSync(resolve(artifactPath, "worker.stdout.log"), "utf8")).toContain(
       "worker completed",
