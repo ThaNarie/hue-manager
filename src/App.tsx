@@ -1,3 +1,4 @@
+import { GroupsDashboard } from "./components/GroupsDashboard/GroupsDashboard";
 import { AutomationsDashboard } from "./components/AutomationsDashboard/AutomationsDashboard";
 import { OverviewHealthCard } from "./components/OverviewHealthCard/OverviewHealthCard";
 import { LightsDashboard } from "./components/LightsDashboard/LightsDashboard";
@@ -19,6 +20,7 @@ export function App() {
       <AutomationsDashboard />
       <LightsDashboard />
       <ScenesDashboard />
+      <GroupsDashboard />
     </main>
   );
 }
