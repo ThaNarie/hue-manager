@@ -14,6 +14,7 @@
     "ralph:start": "tsc -p tsconfig.ralph.json && node dist/ralph/cli.js start",
     "ralph:once": "tsc -p tsconfig.ralph.json && node dist/ralph/cli.js once",
     "ralph:doctor": "tsc -p tsconfig.ralph.json && node dist/ralph/cli.js doctor",
+    "ralph:cleanup": "tsc -p tsconfig.ralph.json && node dist/ralph/cli.js cleanup",
     "build:backend": "tsc -p tsconfig.backend.json",
     "check": "vp check",
     "test": "vp test"

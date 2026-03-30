@@ -13,6 +13,7 @@ export type RalphConfig = {
   baseBranch: string;
   workerImage: string;
   workerTimeoutMs: number;
+  cleanupRetentionDays: number;
   requiredLabels: RalphLabelConfig[];
 };
 

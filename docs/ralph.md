@@ -8,6 +8,7 @@ Ralph now supports end-to-end issue execution with deterministic selection, work
 - `vp run ralph:worker:build`: builds the dedicated Ralph worker image with Cursor CLI and `gh` preinstalled.
 - `vp run ralph:once`: runs one full cycle (select issue, execute worker, run checks, publish).
 - `vp run ralph:start`: runs the full cycle continuously using `loopIntervalMs` from `ralph.config.json`.
+- `vp run ralph:cleanup`: prunes artifacts older than retention and removes retained successful-run worktrees.
 
 You can also run the same scripts via `npm run` if preferred.
 
@@ -23,6 +24,7 @@ Non-secret config lives in `ralph.config.json`:
 - `baseBranch`: base branch for issue worktree and PR target.
 - `workerImage`: Docker image used to run the worker (default: `hue-manager-ralph-worker:latest`).
 - `workerTimeoutMs`: hard timeout for a worker run.
+- `cleanupRetentionDays`: retention window in days for cleanup (default: `14`).
 - `requiredLabels`: lifecycle labels `ralph:doctor` ensures exist.
 
 ## Worker and publish flow

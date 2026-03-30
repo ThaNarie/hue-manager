@@ -7,6 +7,7 @@
   "baseBranch": "main",
   "workerImage": "hue-manager-ralph-worker:latest",
   "workerTimeoutMs": 900000,
+  "cleanupRetentionDays": 14,
   "requiredLabels": [
     {
       "name": "ai:ready",
