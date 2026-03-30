@@ -13,6 +13,7 @@ export function ScenesDashboard() {
     createScene,
     creatingScene,
     deleteScene,
+    deleteScenes,
     dismissToast,
     draft,
     editScene,
@@ -71,6 +72,9 @@ export function ScenesDashboard() {
             onActivateScene={activateScene}
             onEditScene={editScene}
             onDeleteScene={deleteScene}
+            onBulkDeleteScenes={(sceneIds) => {
+              void deleteScenes(sceneIds);
+            }}
           />
         )}
       </CardContent>

@@ -2,6 +2,7 @@ import { Card } from "../ui/Card/Card";
 import { CardContent } from "../ui/Card/CardContent";
 import { CardHeader } from "../ui/Card/CardHeader";
 import { CardTitle } from "../ui/Card/CardTitle";
+import { SavedViewControls } from "../SavedViewControls/SavedViewControls";
 import { LightsDashboardFilters } from "./LightsDashboardFilters";
 import { useLightsDashboard } from "./LightsDashboard.hooks";
 import { LightsDashboardList } from "./LightsDashboardList";
@@ -14,6 +15,7 @@ export function LightsDashboard() {
     error,
     filters,
     filteredLights,
+    bulkTurnOnFilteredLights,
     isLoading,
     isRefreshing,
     lightErrors,
@@ -21,9 +23,17 @@ export function LightsDashboard() {
     pendingLightIds,
     refresh,
     roomOptions,
+    saveCurrentView,
+    savedViewDraftName,
+    savedViews,
+    selectedSavedViewName,
     toasts,
     updateLight,
     updateFilters,
+    applySelectedSavedView,
+    deleteSelectedSavedView,
+    setSavedViewDraftName,
+    setSelectedSavedViewName,
     zoneOptions,
   } = useLightsDashboard();
 
@@ -46,6 +56,20 @@ export function LightsDashboard() {
       </CardHeader>
 
       <CardContent className="space-y-4">
+        <SavedViewControls
+          title="Saved light views"
+          saveLabel="Save current view"
+          namePlaceholder="Evening downstairs"
+          savedViews={savedViews.map((view) => view.name)}
+          draftName={savedViewDraftName}
+          selectedViewName={selectedSavedViewName}
+          onDraftNameChange={setSavedViewDraftName}
+          onSelectedViewNameChange={setSelectedSavedViewName}
+          onSave={saveCurrentView}
+          onApply={applySelectedSavedView}
+          onDelete={deleteSelectedSavedView}
+        />
+
         <LightsDashboardFilters
           filters={filters}
           roomOptions={roomOptions}
@@ -64,6 +88,17 @@ export function LightsDashboard() {
             Showing {filteredLights.length} of {lights.length} lights
           </p>
           {filters.zoneId === UNASSIGNED_ZONE_FILTER ? <p>Filtered to unassigned zone</p> : null}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={bulkTurnOnFilteredLights}
+            className="rounded-md border border-border px-2 py-1 text-xs font-medium text-slate-100 transition hover:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={filteredLights.length === 0}
+          >
+            Turn on all filtered
+          </button>
         </div>
 
         {isLoading ? (

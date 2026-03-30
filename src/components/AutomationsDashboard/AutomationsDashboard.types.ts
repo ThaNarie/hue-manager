@@ -10,6 +10,11 @@ export type AutomationFilters = {
   sort: AutomationSortOption;
 };
 
+export type SavedAutomationView = {
+  name: string;
+  filters: AutomationFilters;
+};
+
 export type AutomationMutationInput = {
   automationId: string;
   patch: AutomationMutationRequest;

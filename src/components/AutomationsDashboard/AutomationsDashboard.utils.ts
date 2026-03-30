@@ -3,7 +3,10 @@ import type {
   AutomationFilters,
   AutomationSortOption,
   AutomationStatusFilter,
+  SavedAutomationView,
 } from "./AutomationsDashboard.types";
+
+export const AUTOMATION_SAVED_VIEWS_STORAGE_KEY = "hue-manager:automations:saved-views";
 
 export const AUTOMATION_SORT_OPTIONS: Array<{ value: AutomationSortOption; label: string }> = [
   { value: "name-asc", label: "Name (A-Z)" },
@@ -27,6 +30,71 @@ export function getInitialAutomationFilters(): AutomationFilters {
     status: "all",
     sort: "name-asc",
   };
+}
+
+export function parseSavedAutomationViews(rawValue: string | null): SavedAutomationView[] {
+  if (!rawValue) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(rawValue);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed
+      .filter((candidate): candidate is SavedAutomationView => {
+        if (!candidate || typeof candidate !== "object") {
+          return false;
+        }
+        const view = candidate as Partial<SavedAutomationView>;
+        return (
+          typeof view.name === "string" &&
+          typeof view.filters?.searchQuery === "string" &&
+          typeof view.filters?.status === "string" &&
+          typeof view.filters?.sort === "string"
+        );
+      })
+      .map((view) => ({
+        name: view.name,
+        filters: { ...view.filters },
+      }));
+  } catch {
+    return [];
+  }
+}
+
+export function upsertSavedAutomationView(
+  views: SavedAutomationView[],
+  nextView: SavedAutomationView,
+): SavedAutomationView[] {
+  const nextName = nextView.name.trim();
+  if (!nextName) {
+    return views;
+  }
+
+  const normalizedName = nextName.toLowerCase();
+  const remainingViews = views.filter((view) => view.name.toLowerCase() !== normalizedName);
+  return [
+    ...remainingViews,
+    {
+      name: nextName,
+      filters: { ...nextView.filters },
+    },
+  ];
+}
+
+export function removeSavedAutomationView(
+  views: SavedAutomationView[],
+  viewName: string,
+): SavedAutomationView[] {
+  const normalizedName = viewName.trim().toLowerCase();
+  if (!normalizedName) {
+    return views;
+  }
+
+  return views.filter((view) => view.name.toLowerCase() !== normalizedName);
 }
 
 function compareBySort(left: Automation, right: Automation, sort: AutomationSortOption): number {

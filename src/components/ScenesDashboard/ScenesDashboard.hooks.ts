@@ -203,6 +203,40 @@ export function useScenesDashboard() {
     deleteMutation.mutate(sceneId);
   }
 
+  async function deleteScenes(sceneIds: string[]) {
+    const uniqueSceneIds = [...new Set(sceneIds)];
+    if (uniqueSceneIds.length === 0) {
+      return;
+    }
+
+    const settledResults = await Promise.allSettled(
+      uniqueSceneIds.map((sceneId) => deleteMutation.mutateAsync(sceneId)),
+    );
+    const successCount = settledResults.filter((result) => result.status === "fulfilled").length;
+    const failureCount = settledResults.length - successCount;
+
+    if (successCount > 0) {
+      setToasts((current) => [
+        ...current,
+        {
+          id: crypto.randomUUID(),
+          message: `Deleted ${successCount} scene${successCount === 1 ? "" : "s"}.`,
+          tone: "success",
+        },
+      ]);
+    }
+    if (failureCount > 0) {
+      setToasts((current) => [
+        ...current,
+        {
+          id: crypto.randomUUID(),
+          message: `Failed to delete ${failureCount} scene${failureCount === 1 ? "" : "s"}.`,
+          tone: "error",
+        },
+      ]);
+    }
+  }
+
   function dismissToast(toastId: string) {
     setToasts((current) => current.filter((toast) => toast.id !== toastId));
   }
@@ -219,6 +253,7 @@ export function useScenesDashboard() {
     editScene,
     activateScene,
     deleteScene,
+    deleteScenes,
     dismissToast,
     refresh: query.refetch,
     setDraft,

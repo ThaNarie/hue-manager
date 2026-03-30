@@ -12,12 +12,17 @@ import type {
   AutomationMutationInput,
   AutomationsDashboardData,
   AutomationsToast,
+  SavedAutomationView,
 } from "./AutomationsDashboard.types";
 import {
+  AUTOMATION_SAVED_VIEWS_STORAGE_KEY,
   applyOptimisticAutomationPatch,
   filterAndSortAutomations,
   getInitialAutomationFilters,
+  parseSavedAutomationViews,
+  removeSavedAutomationView,
   replaceAutomationById,
+  upsertSavedAutomationView,
 } from "./AutomationsDashboard.utils";
 
 const AUTOMATIONS_QUERY_KEY = ["automations-dashboard"] as const;
@@ -56,6 +61,16 @@ async function requestAutomationMutation(input: AutomationMutationInput) {
 
 export function useAutomationsDashboard() {
   const [filters, setFilters] = useState<AutomationFilters>(getInitialAutomationFilters);
+  const [savedViews, setSavedViews] = useState<SavedAutomationView[]>(() => {
+    if (typeof window === "undefined") {
+      return [];
+    }
+    return parseSavedAutomationViews(
+      window.localStorage.getItem(AUTOMATION_SAVED_VIEWS_STORAGE_KEY),
+    );
+  });
+  const [savedViewDraftName, setSavedViewDraftName] = useState("");
+  const [selectedSavedViewName, setSelectedSavedViewName] = useState("");
   const [automationErrors, setAutomationErrors] = useState<AutomationControlErrorMap>({});
   const [pendingAutomationIds, setPendingAutomationIds] = useState<string[]>([]);
   const [toasts, setToasts] = useState<AutomationsToast[]>([]);
@@ -157,8 +172,55 @@ export function useAutomationsDashboard() {
     }));
   }
 
+  function persistSavedViews(nextViews: SavedAutomationView[]) {
+    setSavedViews(nextViews);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(AUTOMATION_SAVED_VIEWS_STORAGE_KEY, JSON.stringify(nextViews));
+    }
+  }
+
+  function saveCurrentView() {
+    const nextName = savedViewDraftName.trim();
+    if (!nextName) {
+      return;
+    }
+
+    const nextViews = upsertSavedAutomationView(savedViews, { name: nextName, filters });
+    persistSavedViews(nextViews);
+    setSavedViewDraftName("");
+    setSelectedSavedViewName(nextName);
+  }
+
+  function applySelectedSavedView() {
+    if (!selectedSavedViewName) {
+      return;
+    }
+    const selectedView = savedViews.find((view) => view.name === selectedSavedViewName);
+    if (!selectedView) {
+      return;
+    }
+    setFilters({ ...selectedView.filters });
+  }
+
+  function deleteSelectedSavedView() {
+    if (!selectedSavedViewName) {
+      return;
+    }
+    const nextViews = removeSavedAutomationView(savedViews, selectedSavedViewName);
+    persistSavedViews(nextViews);
+    setSelectedSavedViewName("");
+  }
+
   function updateAutomation(automationId: string, isEnabled: boolean) {
     mutation.mutate({ automationId, patch: { isEnabled } });
+  }
+
+  function bulkEnableFilteredAutomations() {
+    data.filteredAutomations.forEach((automation) => {
+      if (!automation.isEnabled) {
+        updateAutomation(automation.id, true);
+      }
+    });
   }
 
   function dismissToast(toastId: string) {
@@ -168,15 +230,24 @@ export function useAutomationsDashboard() {
   return {
     ...data,
     automationErrors,
+    bulkEnableFilteredAutomations,
     dismissToast,
     filters,
     isLoading: query.isLoading,
     isRefreshing: query.isFetching,
     pendingAutomationIds,
+    saveCurrentView,
+    savedViewDraftName,
+    savedViews,
+    selectedSavedViewName,
     error: query.error,
     refresh: query.refetch,
     toasts,
     updateAutomation,
     updateFilters,
+    applySelectedSavedView,
+    deleteSelectedSavedView,
+    setSavedViewDraftName,
+    setSelectedSavedViewName,
   };
 }

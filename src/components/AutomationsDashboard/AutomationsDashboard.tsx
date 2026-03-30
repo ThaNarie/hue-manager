@@ -2,6 +2,7 @@ import { Card } from "../ui/Card/Card";
 import { CardContent } from "../ui/Card/CardContent";
 import { CardHeader } from "../ui/Card/CardHeader";
 import { CardTitle } from "../ui/Card/CardTitle";
+import { SavedViewControls } from "../SavedViewControls/SavedViewControls";
 import { useAutomationsDashboard } from "./AutomationsDashboard.hooks";
 import { AutomationsDashboardFilters } from "./AutomationsDashboardFilters";
 import { AutomationsDashboardList } from "./AutomationsDashboardList";
@@ -15,13 +16,22 @@ export function AutomationsDashboard() {
     error,
     filters,
     filteredAutomations,
+    bulkEnableFilteredAutomations,
     isLoading,
     isRefreshing,
     pendingAutomationIds,
     refresh,
+    saveCurrentView,
+    savedViewDraftName,
+    savedViews,
+    selectedSavedViewName,
     toasts,
     updateAutomation,
     updateFilters,
+    applySelectedSavedView,
+    deleteSelectedSavedView,
+    setSavedViewDraftName,
+    setSelectedSavedViewName,
   } = useAutomationsDashboard();
 
   return (
@@ -43,6 +53,20 @@ export function AutomationsDashboard() {
       </CardHeader>
 
       <CardContent className="space-y-4">
+        <SavedViewControls
+          title="Saved automation views"
+          saveLabel="Save current view"
+          namePlaceholder="Disabled by owner"
+          savedViews={savedViews.map((view) => view.name)}
+          draftName={savedViewDraftName}
+          selectedViewName={selectedSavedViewName}
+          onDraftNameChange={setSavedViewDraftName}
+          onSelectedViewNameChange={setSelectedSavedViewName}
+          onSave={saveCurrentView}
+          onApply={applySelectedSavedView}
+          onDelete={deleteSelectedSavedView}
+        />
+
         <AutomationsDashboardFilters filters={filters} onUpdateFilters={updateFilters} />
 
         {error ? (
@@ -55,6 +79,17 @@ export function AutomationsDashboard() {
           <p>
             Showing {filteredAutomations.length} of {automations.length} automations
           </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={bulkEnableFilteredAutomations}
+            className="rounded-md border border-border px-2 py-1 text-xs font-medium text-slate-100 transition hover:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={filteredAutomations.length === 0}
+          >
+            Enable all filtered
+          </button>
         </div>
 
         {isLoading ? (
