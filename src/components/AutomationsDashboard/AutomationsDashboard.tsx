@@ -6,6 +6,7 @@ import { SavedViewControls } from "../SavedViewControls/SavedViewControls";
 import { useAutomationsDashboard } from "./AutomationsDashboard.hooks";
 import { AutomationsDashboardEditor } from "./AutomationsDashboardEditor";
 import { AutomationsDashboardFilters } from "./AutomationsDashboardFilters";
+import { AutomationsDashboardJsonEditor } from "./AutomationsDashboardJsonEditor";
 import { AutomationsDashboardList } from "./AutomationsDashboardList";
 import { AutomationsDashboardToasts } from "./AutomationsDashboardToasts";
 
@@ -16,6 +17,7 @@ export function AutomationsDashboard() {
     bulkEnableFilteredAutomations,
     dismissToast,
     error,
+    editorVariant,
     filters,
     filteredAutomations,
     isBridgeOffline,
@@ -23,20 +25,28 @@ export function AutomationsDashboard() {
     isSavingGuidedAutomation,
     isRefreshing,
     guidedMode,
+    jsonApiError,
+    jsonDraft,
+    jsonDraftErrors,
     onCancelGuidedEdit,
     onSubmitGuidedAutomation,
+    onSubmitJsonAutomation,
     requiredGuidedSafetyAction,
+    requiredJsonSafetyAction,
     guidedDraft,
     guidedDraftErrors,
     pendingAutomationIds,
     refresh,
+    setEditorVariant,
     saveCurrentView,
     savedViewDraftName,
     savedViews,
     selectedSavedViewName,
     setGuidedDraft,
+    setJsonDraft,
     toasts,
     startGuidedEdit,
+    startJsonEdit,
     updateAutomation,
     updateFilters,
     applySelectedSavedView,
@@ -78,16 +88,60 @@ export function AutomationsDashboard() {
           onDelete={deleteSelectedSavedView}
         />
 
-        <AutomationsDashboardEditor
-          draft={guidedDraft}
-          errors={guidedDraftErrors}
-          mode={guidedMode}
-          pending={isSavingGuidedAutomation}
-          requiredSafetyAction={requiredGuidedSafetyAction}
-          onDraftChange={setGuidedDraft}
-          onSubmit={onSubmitGuidedAutomation}
-          onCancelEdit={onCancelGuidedEdit}
-        />
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            className={`rounded-md border px-2 py-1 text-xs transition ${
+              editorVariant === "guided"
+                ? "border-slate-500 text-slate-100"
+                : "border-border text-muted-foreground hover:text-foreground"
+            }`}
+            onClick={() => {
+              setEditorVariant("guided");
+            }}
+            disabled={isSavingGuidedAutomation}
+          >
+            Guided mode
+          </button>
+          <button
+            type="button"
+            className={`rounded-md border px-2 py-1 text-xs transition ${
+              editorVariant === "json"
+                ? "border-slate-500 text-slate-100"
+                : "border-border text-muted-foreground hover:text-foreground"
+            }`}
+            onClick={() => {
+              setEditorVariant("json");
+            }}
+            disabled={isSavingGuidedAutomation}
+          >
+            Advanced JSON mode
+          </button>
+        </div>
+
+        {editorVariant === "guided" ? (
+          <AutomationsDashboardEditor
+            draft={guidedDraft}
+            errors={guidedDraftErrors}
+            mode={guidedMode}
+            pending={isSavingGuidedAutomation}
+            requiredSafetyAction={requiredGuidedSafetyAction}
+            onDraftChange={setGuidedDraft}
+            onSubmit={onSubmitGuidedAutomation}
+            onCancelEdit={onCancelGuidedEdit}
+          />
+        ) : (
+          <AutomationsDashboardJsonEditor
+            draft={jsonDraft}
+            errors={jsonDraftErrors}
+            pending={isSavingGuidedAutomation}
+            requiredSafetyAction={requiredJsonSafetyAction}
+            apiError={jsonApiError}
+            onDraftChange={setJsonDraft}
+            onSubmit={onSubmitJsonAutomation}
+            onCancelEdit={onCancelGuidedEdit}
+          />
+        )}
 
         <AutomationsDashboardFilters filters={filters} onUpdateFilters={updateFilters} />
 
@@ -131,6 +185,7 @@ export function AutomationsDashboard() {
             writesDisabled={isBridgeOffline}
             onUpdateAutomation={updateAutomation}
             onEditAutomation={startGuidedEdit}
+            onEditAutomationJson={startJsonEdit}
           />
         )}
       </CardContent>

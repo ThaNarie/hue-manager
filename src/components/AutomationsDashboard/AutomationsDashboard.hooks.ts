@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Automation, AutomationsResponse } from "../../../shared/contracts/automations";
+import type { AutomationsResponse } from "../../../shared/contracts/automations";
 import {
   DANGEROUS_AUTOMATION_MUTATION_TOKEN,
   getAutomationMutationSafetyAction,
@@ -13,9 +13,7 @@ import {
 import type {
   AutomationControlErrorMap,
   AutomationFilters,
-  AutomationGuidedDraftErrors,
   AutomationMutationInput,
-  AutomationsDashboardData,
   AutomationsToast,
   SavedAutomationView,
 } from "./AutomationsDashboard.types";
@@ -23,15 +21,13 @@ import {
   AUTOMATION_SAVED_VIEWS_STORAGE_KEY,
   applyOptimisticAutomationPatch,
   filterAndSortAutomations,
-  getGuidedDraftFromAutomation,
   getInitialAutomationFilters,
   parseSavedAutomationViews,
   removeSavedAutomationView,
   replaceAutomationById,
   upsertSavedAutomationView,
-  getInitialAutomationGuidedDraft,
-  validateAutomationGuidedDraft,
 } from "./AutomationsDashboard.utils";
+import { useAutomationsDashboardEditorState } from "./AutomationsDashboardEditor.hooks";
 import { useBridgeWriteGate } from "../OverviewHealthCard/OverviewHealthCard.hooks";
 
 const AUTOMATIONS_QUERY_KEY = ["automations-dashboard"] as const;
@@ -51,10 +47,7 @@ export function useAutomationsDashboard() {
   const [automationErrors, setAutomationErrors] = useState<AutomationControlErrorMap>({});
   const [pendingAutomationIds, setPendingAutomationIds] = useState<string[]>([]);
   const [toasts, setToasts] = useState<AutomationsToast[]>([]);
-  const [guidedMode, setGuidedMode] = useState<"create" | "edit">("create");
-  const [editingAutomationId, setEditingAutomationId] = useState<string | null>(null);
-  const [guidedDraft, setGuidedDraftState] = useState(getInitialAutomationGuidedDraft);
-  const [guidedDraftErrors, setGuidedDraftErrors] = useState<AutomationGuidedDraftErrors>({});
+  const editorState = useAutomationsDashboardEditorState();
   const queryClient = useQueryClient();
   const { isBridgeOffline } = useBridgeWriteGate();
   const query = useQuery({
@@ -62,6 +55,7 @@ export function useAutomationsDashboard() {
     queryFn: requestAutomations,
     staleTime: 10_000,
   });
+
   const mutation = useMutation({
     mutationFn: (input: AutomationMutationInput) =>
       requestAutomationMutation(input.automationId, input.patch, input.approval),
@@ -83,18 +77,12 @@ export function useAutomationsDashboard() {
         });
       }
       setAutomationErrors((current) => {
-        if (!current[input.automationId]) {
-          return current;
-        }
         const { [input.automationId]: _removed, ...rest } = current;
         return rest;
       });
-      setPendingAutomationIds((current) => {
-        if (current.includes(input.automationId)) {
-          return current;
-        }
-        return [...current, input.automationId];
-      });
+      setPendingAutomationIds((current) =>
+        current.includes(input.automationId) ? current : [...current, input.automationId],
+      );
       return { previousData, automationId: input.automationId };
     },
     onSuccess: (result, input) => {
@@ -109,21 +97,11 @@ export function useAutomationsDashboard() {
         };
       });
       setAutomationErrors((current) => {
-        if (!current[input.automationId]) {
-          return current;
-        }
         const { [input.automationId]: _removed, ...rest } = current;
         return rest;
       });
-      if (
-        input.patch.name !== undefined ||
-        input.patch.conditions !== undefined ||
-        input.patch.actions !== undefined
-      ) {
-        setGuidedMode("create");
-        setEditingAutomationId(null);
-        setGuidedDraftState(getInitialAutomationGuidedDraft());
-        setGuidedDraftErrors({});
+      if (input.patch.name !== undefined || input.patch.conditions || input.patch.actions) {
+        editorState.resetEditorState();
         setToasts((current) => [
           ...current,
           { id: crypto.randomUUID(), message: `Updated automation "${result.automation.name}".` },
@@ -134,20 +112,13 @@ export function useAutomationsDashboard() {
       if (context?.previousData) {
         queryClient.setQueryData(AUTOMATIONS_QUERY_KEY, context.previousData);
       }
-      const automationId = context?.automationId;
-      if (automationId) {
+      if (context?.automationId) {
         setAutomationErrors((current) => ({
           ...current,
-          [automationId]: error.message,
+          [context.automationId]: error.message,
         }));
       }
-      setToasts((current) => [
-        ...current,
-        {
-          id: crypto.randomUUID(),
-          message: error.message,
-        },
-      ]);
+      setToasts((current) => [...current, { id: crypto.randomUUID(), message: error.message }]);
     },
     onSettled: (_data, _error, input) => {
       setPendingAutomationIds((current) =>
@@ -155,6 +126,7 @@ export function useAutomationsDashboard() {
       );
     },
   });
+
   const createMutation = useMutation({
     mutationFn: ({
       input,
@@ -166,10 +138,7 @@ export function useAutomationsDashboard() {
     onSuccess: (result) => {
       queryClient.setQueryData<AutomationsResponse>(AUTOMATIONS_QUERY_KEY, (current) => {
         if (!current) {
-          return {
-            generatedAt: new Date().toISOString(),
-            automations: [result.automation],
-          };
+          return { generatedAt: new Date().toISOString(), automations: [result.automation] };
         }
         return {
           ...current,
@@ -179,8 +148,7 @@ export function useAutomationsDashboard() {
           ),
         };
       });
-      setGuidedDraftState(getInitialAutomationGuidedDraft());
-      setGuidedDraftErrors({});
+      editorState.resetEditorState();
       setToasts((current) => [
         ...current,
         { id: crypto.randomUUID(), message: `Created automation "${result.automation.name}".` },
@@ -191,20 +159,8 @@ export function useAutomationsDashboard() {
     },
   });
 
-  const data: AutomationsDashboardData = useMemo(() => {
-    const automations = query.data?.automations ?? [];
-    const filteredAutomations = filterAndSortAutomations(automations, filters);
-    return {
-      automations,
-      filteredAutomations,
-    };
-  }, [filters, query.data?.automations]);
-
   function updateFilters(nextPartial: Partial<AutomationFilters>) {
-    setFilters((current) => ({
-      ...current,
-      ...nextPartial,
-    }));
+    setFilters((current) => ({ ...current, ...nextPartial }));
   }
 
   function persistSavedViews(nextViews: SavedAutomationView[]) {
@@ -260,109 +216,39 @@ export function useAutomationsDashboard() {
     const patch = { isEnabled };
     const requiredAction = getAutomationMutationSafetyAction(patch);
     if (requiredAction === "confirm") {
-      const isApproved = window.confirm(
+      const approved = window.confirm(
         "Disabling this automation is destructive. Confirm disable to continue.",
       );
-      if (!isApproved) {
+      if (!approved) {
         return;
       }
     }
-    const approval =
-      requiredAction === "immediate"
-        ? null
-        : requiredAction === "confirm"
-          ? { action: "confirm" as const }
-          : {
-              action: "explicit" as const,
-              token: DANGEROUS_AUTOMATION_MUTATION_TOKEN,
-            };
-    mutation.mutate({ automationId, patch, approval });
-  }
-
-  function setGuidedDraft(nextDraft: typeof guidedDraft) {
-    setGuidedDraftState(nextDraft);
-    setGuidedDraftErrors({});
-  }
-
-  function startGuidedEdit(automation: Automation) {
-    setGuidedMode("edit");
-    setEditingAutomationId(automation.id);
-    setGuidedDraftState(getGuidedDraftFromAutomation(automation));
-    setGuidedDraftErrors({});
-  }
-
-  function onCancelGuidedEdit() {
-    setGuidedMode("create");
-    setEditingAutomationId(null);
-    setGuidedDraftState(getInitialAutomationGuidedDraft());
-    setGuidedDraftErrors({});
-  }
-
-  function getGuidedMutationPlan() {
-    const validation = validateAutomationGuidedDraft(guidedDraft);
-    const nextErrors: AutomationGuidedDraftErrors = { ...validation.errors };
-    if (!validation.actionBody) {
-      setGuidedDraftErrors(nextErrors);
-      return null;
-    }
-
-    const mutationPayload = {
-      name: guidedDraft.name.trim(),
-      isEnabled: guidedDraft.isEnabled,
-      conditions: [
-        {
-          address: guidedDraft.conditionAddress.trim(),
-          operator: guidedDraft.conditionOperator.trim(),
-          value: guidedDraft.conditionValue.trim(),
-        },
-      ],
-      actions: [
-        {
-          address: guidedDraft.actionAddress.trim(),
-          method: guidedDraft.actionMethod,
-          body: validation.actionBody,
-        },
-      ],
-    };
-    const requiredAction = getAutomationMutationSafetyAction(mutationPayload);
-    if (requiredAction === "confirm" && !guidedDraft.confirmDestructive) {
-      nextErrors.confirmDestructive = "Required for this write.";
-    }
-    if (
-      requiredAction === "explicit" &&
-      guidedDraft.explicitDangerousToken.trim() !== DANGEROUS_AUTOMATION_MUTATION_TOKEN
-    ) {
-      nextErrors.explicitDangerousToken = "Dangerous confirmation token does not match.";
-    }
-    if (Object.keys(nextErrors).length > 0) {
-      setGuidedDraftErrors(nextErrors);
-      return null;
-    }
-    setGuidedDraftErrors({});
-    return {
-      payload: mutationPayload,
+    mutation.mutate({
+      automationId,
+      patch,
       approval:
         requiredAction === "immediate"
           ? null
           : requiredAction === "confirm"
             ? { action: "confirm" as const }
-            : {
-                action: "explicit" as const,
-                token: guidedDraft.explicitDangerousToken.trim(),
-              },
-    };
+            : { action: "explicit" as const, token: DANGEROUS_AUTOMATION_MUTATION_TOKEN },
+    });
+  }
+
+  function onCancelGuidedEdit() {
+    editorState.resetEditorState();
   }
 
   function onSubmitGuidedAutomation() {
-    const plan = getGuidedMutationPlan();
+    const plan = editorState.getGuidedMutationPlan();
     if (!plan) {
       return;
     }
-    if (guidedMode === "create") {
+    if (editorState.guidedMode === "create") {
       createMutation.mutate({ input: plan.payload, approval: plan.approval });
       return;
     }
-    if (!editingAutomationId) {
+    if (!editorState.editingAutomationId) {
       setToasts((current) => [
         ...current,
         { id: crypto.randomUUID(), message: "No automation selected for guided edit." },
@@ -370,74 +256,88 @@ export function useAutomationsDashboard() {
       return;
     }
     mutation.mutate({
-      automationId: editingAutomationId,
+      automationId: editorState.editingAutomationId,
       patch: plan.payload,
       approval: plan.approval,
     });
   }
 
-  function bulkEnableFilteredAutomations() {
-    data.filteredAutomations.forEach((automation) => {
-      if (!automation.isEnabled) {
-        updateAutomation(automation.id, true);
-      }
-    });
+  function onSubmitJsonAutomation() {
+    if (!editorState.editingAutomationId) {
+      setToasts((current) => [
+        ...current,
+        { id: crypto.randomUUID(), message: "No automation selected for JSON edit." },
+      ]);
+      return;
+    }
+    const plan = editorState.getJsonMutationPlan();
+    if (!plan) {
+      return;
+    }
+    mutation.mutate(
+      {
+        automationId: editorState.editingAutomationId,
+        patch: plan.payload,
+        approval: plan.approval,
+      },
+      {
+        onError: (error) => {
+          editorState.setJsonApiError(error.message);
+        },
+      },
+    );
   }
 
   function dismissToast(toastId: string) {
     setToasts((current) => current.filter((toast) => toast.id !== toastId));
   }
 
-  const requiredGuidedSafetyAction = useMemo(() => {
-    const validation = validateAutomationGuidedDraft(guidedDraft);
-    if (!validation.actionBody) {
-      return "immediate";
-    }
-    return getAutomationMutationSafetyAction({
-      name: guidedDraft.name.trim(),
-      isEnabled: guidedDraft.isEnabled,
-      conditions: [
-        {
-          address: guidedDraft.conditionAddress.trim(),
-          operator: guidedDraft.conditionOperator.trim(),
-          value: guidedDraft.conditionValue.trim(),
-        },
-      ],
-      actions: [
-        {
-          address: guidedDraft.actionAddress.trim(),
-          method: guidedDraft.actionMethod,
-          body: validation.actionBody,
-        },
-      ],
+  const automations = query.data?.automations ?? [];
+  const filteredAutomations = filterAndSortAutomations(automations, filters);
+
+  function bulkEnableFilteredAutomations() {
+    filteredAutomations.forEach((automation) => {
+      if (!automation.isEnabled) {
+        updateAutomation(automation.id, true);
+      }
     });
-  }, [guidedDraft]);
+  }
 
   return {
-    ...data,
+    automations,
+    filteredAutomations,
     automationErrors,
     bulkEnableFilteredAutomations,
     dismissToast,
+    editorVariant: editorState.editorVariant,
+    error: query.error,
     filters,
-    guidedMode,
-    guidedDraft,
-    guidedDraftErrors,
+    guidedDraft: editorState.guidedDraft,
+    guidedDraftErrors: editorState.guidedDraftErrors,
+    guidedMode: editorState.guidedMode,
     isLoading: query.isLoading,
     isBridgeOffline,
     isRefreshing: query.isFetching,
     isSavingGuidedAutomation: mutation.isPending || createMutation.isPending,
+    jsonApiError: editorState.jsonApiError,
+    jsonDraft: editorState.jsonDraft,
+    jsonDraftErrors: editorState.jsonDraftErrors,
     pendingAutomationIds,
     saveCurrentView,
     savedViewDraftName,
     savedViews,
     selectedSavedViewName,
-    error: query.error,
     onCancelGuidedEdit,
     onSubmitGuidedAutomation,
-    requiredGuidedSafetyAction,
+    onSubmitJsonAutomation,
     refresh: query.refetch,
-    setGuidedDraft,
-    startGuidedEdit,
+    requiredGuidedSafetyAction: editorState.requiredGuidedSafetyAction,
+    requiredJsonSafetyAction: editorState.requiredJsonSafetyAction,
+    setEditorVariant: editorState.setEditorVariant,
+    setGuidedDraft: editorState.setGuidedDraft,
+    setJsonDraft: editorState.setJsonDraft,
+    startGuidedEdit: editorState.startGuidedEdit,
+    startJsonEdit: editorState.startJsonEdit,
     toasts,
     updateAutomation,
     updateFilters,

@@ -1,8 +1,12 @@
 import type { Automation } from "../../../shared/contracts/automations";
+import { parseAutomationMutationRequest } from "../../../shared/contracts/automations";
+import type { AutomationMutationRequest } from "../../../shared/contracts/automations";
 import type {
   AutomationFilters,
   AutomationGuidedDraft,
   AutomationGuidedDraftErrors,
+  AutomationJsonDraft,
+  AutomationJsonDraftErrors,
   AutomationSortOption,
   AutomationStatusFilter,
   SavedAutomationView,
@@ -261,4 +265,70 @@ export function validateAutomationGuidedDraft(draft: AutomationGuidedDraft): {
     errors,
     actionBody: isValidActionBody ? (parsedActionBody as Record<string, unknown>) : null,
   };
+}
+
+export function getInitialAutomationJsonDraft(): AutomationJsonDraft {
+  return {
+    payloadText: JSON.stringify(
+      { name: "", isEnabled: true, conditions: [], actions: [] },
+      null,
+      2,
+    ),
+    confirmDestructive: false,
+    explicitDangerousToken: "",
+  };
+}
+
+export function getJsonDraftFromAutomation(automation: Automation): AutomationJsonDraft {
+  return {
+    payloadText: JSON.stringify(
+      {
+        name: automation.name,
+        isEnabled: automation.isEnabled,
+        conditions: automation.conditions,
+        actions: automation.actions,
+      },
+      null,
+      2,
+    ),
+    confirmDestructive: false,
+    explicitDangerousToken: "",
+  };
+}
+
+function getReadableSchemaError(error: unknown): string {
+  if (
+    error &&
+    typeof error === "object" &&
+    "issues" in error &&
+    Array.isArray((error as { issues?: unknown[] }).issues)
+  ) {
+    const firstIssue = (error as { issues: Array<{ message?: unknown }> }).issues[0];
+    if (firstIssue && typeof firstIssue.message === "string") {
+      return firstIssue.message;
+    }
+  }
+  return "Payload does not satisfy automation mutation schema.";
+}
+
+export function validateAutomationJsonDraft(draft: AutomationJsonDraft): {
+  errors: AutomationJsonDraftErrors;
+  payload: AutomationMutationRequest | null;
+} {
+  const errors: AutomationJsonDraftErrors = {};
+  let parsedJson: unknown = null;
+  try {
+    parsedJson = JSON.parse(draft.payloadText) as unknown;
+  } catch {
+    errors.payloadText = "Payload must be valid JSON.";
+    return { errors, payload: null };
+  }
+
+  try {
+    const payload = parseAutomationMutationRequest(parsedJson);
+    return { errors, payload };
+  } catch (error) {
+    errors.payloadText = getReadableSchemaError(error);
+    return { errors, payload: null };
+  }
 }
