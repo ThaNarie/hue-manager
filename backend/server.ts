@@ -3,10 +3,17 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { OverviewHealthResponseSchema } from "../shared/contracts/health.ts";
 import {
+  AutomationCreateRequestSchema,
   AutomationsResponseSchema,
   AutomationMutationRequestSchema,
   AutomationMutationResponseSchema,
 } from "../shared/contracts/automations.ts";
+import {
+  AUTOMATION_SAFETY_APPROVAL_ACTION_HEADER,
+  AUTOMATION_SAFETY_APPROVAL_TOKEN_HEADER,
+  isAutomationMutationSafetyApprovalValid,
+  type AutomationMutationSafetyApproval,
+} from "../shared/safety/automationMutationSafetyPolicy.ts";
 import {
   AuditEventsResponseSchema,
   UpdateAuditRetentionRequestSchema,
@@ -35,6 +42,7 @@ import {
   isLightMutationSafetyApprovalValid,
   type LightMutationSafetyApproval,
 } from "../shared/safety/lightMutationSafetyPolicy.ts";
+import { shouldSnapshotLightMutation } from "../shared/safety/backupSnapshotPolicy.ts";
 import type {
   HueV1Group,
   HueV1GroupsResponse,
@@ -45,10 +53,12 @@ import type {
   HueV1RulesResponse,
 } from "./server.types.ts";
 import { registerSceneRoutes } from "./server.scenes.ts";
+import { createAutomaticPrewriteSnapshot } from "./server.backups.ts";
 import {
   HUE_NOT_CONFIGURED_MESSAGE,
   buildGroupMaps,
   fetchHueJson,
+  getCreatedResourceId,
   getHueBaseUrl,
   getMutationError,
   getOverviewHealth,
@@ -188,6 +198,12 @@ app.patch("/api/lights/:lightId", async (context) => {
   if (!isLightMutationSafetyApprovalValid(parsedBody.data, safetyApproval)) {
     return context.json({ message: "Safety policy rejected this light mutation." }, 403);
   }
+  if (shouldSnapshotLightMutation(parsedBody.data)) {
+    const snapshotResult = await createAutomaticPrewriteSnapshot("lights:destructive-mutation");
+    if (!snapshotResult.ok) {
+      return context.json({ message: snapshotResult.message }, snapshotResult.status);
+    }
+  }
 
   const statePayload: { on?: boolean; bri?: number } = {};
   if (parsedBody.data.isOn !== undefined) {
@@ -209,6 +225,10 @@ app.patch("/api/lights/:lightId", async (context) => {
       requestedPatch: parsedBody.data,
     });
     return context.json({ message: HUE_NOT_CONFIGURED_MESSAGE }, 500);
+  }
+  const snapshotResult = await createAutomaticPrewriteSnapshot("groups:mutation");
+  if (!snapshotResult.ok) {
+    return context.json({ message: snapshotResult.message }, snapshotResult.status);
   }
 
   const mutationResponse = await fetch(`${baseUrl}/lights/${encodeURIComponent(lightId)}/state`, {
@@ -313,6 +333,10 @@ app.patch("/api/groups/:groupKind/:groupId", async (context) => {
   if (!baseUrl) {
     return context.json({ message: HUE_NOT_CONFIGURED_MESSAGE }, 500);
   }
+  const snapshotResult = await createAutomaticPrewriteSnapshot("automations:mutation");
+  if (!snapshotResult.ok) {
+    return context.json({ message: snapshotResult.message }, snapshotResult.status);
+  }
 
   const mutationResponse = await fetch(`${baseUrl}/groups/${encodeURIComponent(groupId)}`, {
     method: "PUT",
@@ -378,6 +402,88 @@ app.get("/api/automations", async (context) => {
   return context.json(payload);
 });
 
+app.get("/api/automations/:automationId", async (context) => {
+  const automationId = context.req.param("automationId");
+  const ruleResult = await fetchHueJson<HueV1Rule>(`/rules/${encodeURIComponent(automationId)}`);
+  if (!ruleResult.ok) {
+    return context.json({ message: ruleResult.message }, ruleResult.status);
+  }
+
+  const automation = mapHueRuleToContract(automationId, ruleResult.data);
+  const payload = AutomationMutationResponseSchema.parse({ automation });
+  return context.json(payload);
+});
+
+app.post("/api/automations", async (context) => {
+  const body = await context.req.json().catch(() => null);
+  const parsedBody = AutomationCreateRequestSchema.safeParse(body);
+  if (!parsedBody.success) {
+    return context.json({ message: "Invalid automation create payload" }, 400);
+  }
+
+  const safetyActionHeader = context.req.header(AUTOMATION_SAFETY_APPROVAL_ACTION_HEADER);
+  const safetyTokenHeader = context.req.header(AUTOMATION_SAFETY_APPROVAL_TOKEN_HEADER);
+  const safetyApproval: AutomationMutationSafetyApproval | null =
+    safetyActionHeader === "confirm" || safetyActionHeader === "explicit"
+      ? {
+          action: safetyActionHeader,
+          token: safetyTokenHeader,
+        }
+      : null;
+  if (!isAutomationMutationSafetyApprovalValid(parsedBody.data, safetyApproval)) {
+    return context.json({ message: "Safety policy rejected this automation mutation." }, 403);
+  }
+
+  const baseUrl = getHueBaseUrl();
+  if (!baseUrl) {
+    return context.json({ message: HUE_NOT_CONFIGURED_MESSAGE }, 500);
+  }
+
+  const createResponse = await fetch(`${baseUrl}/rules`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      name: parsedBody.data.name,
+      status: parsedBody.data.isEnabled ? "enabled" : "disabled",
+      conditions: parsedBody.data.conditions,
+      actions: parsedBody.data.actions,
+    }),
+  }).catch(() => null);
+  if (!createResponse) {
+    return context.json({ message: "Could not reach Hue Bridge." }, 502);
+  }
+  if (!createResponse.ok) {
+    return context.json({ message: `Hue Bridge request failed (${createResponse.status}).` }, 502);
+  }
+
+  const mutationPayload = (await createResponse.json().catch(() => null)) as
+    | HueV1MutationResult[]
+    | null;
+  if (!Array.isArray(mutationPayload)) {
+    return context.json({ message: "Hue Bridge returned invalid mutation response." }, 502);
+  }
+  const mutationError = getMutationError(mutationPayload);
+  if (mutationError) {
+    return context.json({ message: mutationError.message }, mutationError.status);
+  }
+
+  const createdRuleId = getCreatedResourceId(mutationPayload);
+  if (!createdRuleId) {
+    return context.json({ message: "Hue Bridge did not return a created automation id." }, 502);
+  }
+
+  const ruleResult = await fetchHueJson<HueV1Rule>(`/rules/${encodeURIComponent(createdRuleId)}`);
+  if (!ruleResult.ok) {
+    return context.json({ message: ruleResult.message }, ruleResult.status);
+  }
+
+  const automation = mapHueRuleToContract(createdRuleId, ruleResult.data);
+  const payload = AutomationMutationResponseSchema.parse({ automation });
+  return context.json(payload, 201);
+});
+
 app.patch("/api/automations/:automationId", async (context) => {
   const automationId = context.req.param("automationId");
   const body = await context.req.json().catch(() => null);
@@ -386,18 +492,52 @@ app.patch("/api/automations/:automationId", async (context) => {
     return context.json({ message: "Invalid automation mutation payload" }, 400);
   }
 
+  const safetyActionHeader = context.req.header(AUTOMATION_SAFETY_APPROVAL_ACTION_HEADER);
+  const safetyTokenHeader = context.req.header(AUTOMATION_SAFETY_APPROVAL_TOKEN_HEADER);
+  const safetyApproval: AutomationMutationSafetyApproval | null =
+    safetyActionHeader === "confirm" || safetyActionHeader === "explicit"
+      ? {
+          action: safetyActionHeader,
+          token: safetyTokenHeader,
+        }
+      : null;
+  if (!isAutomationMutationSafetyApprovalValid(parsedBody.data, safetyApproval)) {
+    return context.json({ message: "Safety policy rejected this automation mutation." }, 403);
+  }
+
   const baseUrl = getHueBaseUrl();
   if (!baseUrl) {
     return context.json({ message: HUE_NOT_CONFIGURED_MESSAGE }, 500);
   }
 
-  const nextStatus = parsedBody.data.isEnabled ? "enabled" : "disabled";
+  const updatePayload: {
+    name?: string;
+    status?: "enabled" | "disabled";
+    conditions?: Array<{ address: string; operator: string; value: string }>;
+    actions?: Array<{
+      address: string;
+      method: "PUT" | "POST" | "DELETE";
+      body: Record<string, unknown>;
+    }>;
+  } = {};
+  if (parsedBody.data.name !== undefined) {
+    updatePayload.name = parsedBody.data.name;
+  }
+  if (parsedBody.data.isEnabled !== undefined) {
+    updatePayload.status = parsedBody.data.isEnabled ? "enabled" : "disabled";
+  }
+  if (parsedBody.data.conditions !== undefined) {
+    updatePayload.conditions = parsedBody.data.conditions;
+  }
+  if (parsedBody.data.actions !== undefined) {
+    updatePayload.actions = parsedBody.data.actions;
+  }
   const mutationResponse = await fetch(`${baseUrl}/rules/${encodeURIComponent(automationId)}`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ status: nextStatus }),
+    body: JSON.stringify(updatePayload),
   }).catch(() => null);
   if (!mutationResponse) {
     return context.json({ message: "Could not reach Hue Bridge." }, 502);
