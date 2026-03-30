@@ -17,6 +17,9 @@ Non-secret config lives in `ralph.config.json`:
 
 - `repo`: GitHub repo in `owner/repo` format.
 - `loopIntervalMs`: loop interval used by `ralph:start`.
+- `maxWorkers`: maximum number of concurrently active scheduler workers.
+- `idleBackoffMaxMs`: cap for idle polling backoff when no eligible work exists.
+- `idleBackoffJitterMs`: random jitter added to idle backoff delays.
 - `baseBranch`: base branch for issue worktree and PR target.
 - `workerImage`: Docker image used to run the worker (default: `hue-manager-ralph-worker:latest`).
 - `workerTimeoutMs`: hard timeout for a worker run.
