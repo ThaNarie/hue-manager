@@ -1,9 +1,11 @@
 import type { OverviewHealthResponse } from "../shared/contracts/health.ts";
 import type { AutomationsResponse } from "../shared/contracts/automations.ts";
+import type { Group, GroupKind, GroupMember, GroupsResponse } from "../shared/contracts/groups.ts";
 import type { LightGroup, LightType, LightsResponse } from "../shared/contracts/lights.ts";
 import type {
   HueV1GroupsResponse,
   HueV1Light,
+  HueV1LightsResponse,
   HueV1MutationResult,
   HueV1Rule,
 } from "./server.types.ts";
@@ -123,6 +125,61 @@ export function buildGroupMaps(groups: HueV1GroupsResponse) {
   }
 
   return { roomsByLightId, zonesByLightId };
+}
+
+export function toGroupKind(value: string | undefined): GroupKind | null {
+  if (value === "Room" || value === "room") {
+    return "room";
+  }
+  if (value === "Zone" || value === "zone") {
+    return "zone";
+  }
+  return null;
+}
+
+export function mapHueGroupsToContract(
+  groups: HueV1GroupsResponse,
+  lights: HueV1LightsResponse,
+): Pick<GroupsResponse, "groups" | "availableLights"> {
+  const availableLights: GroupMember[] = Object.entries(lights)
+    .map(([lightId, light]) => ({
+      id: lightId,
+      name: light.name ?? `Light ${lightId}`,
+    }))
+    .sort((left, right) => left.name.localeCompare(right.name));
+  const lightsById = new Map(availableLights.map((light) => [light.id, light]));
+  const mappedGroups: Group[] = [];
+
+  for (const [groupId, group] of Object.entries(groups)) {
+    const kind = toGroupKind(group.type);
+    if (!kind) {
+      continue;
+    }
+    const memberLightIds = Array.isArray(group.lights) ? [...group.lights] : [];
+    const members = memberLightIds
+      .map((lightId) => lightsById.get(lightId))
+      .filter((member): member is GroupMember => Boolean(member));
+    mappedGroups.push({
+      id: `${kind}-${groupId}`,
+      hueGroupId: groupId,
+      kind,
+      name: group.name ?? `${kind}-${groupId}`,
+      memberLightIds,
+      members,
+    });
+  }
+
+  mappedGroups.sort((left, right) => {
+    if (left.kind !== right.kind) {
+      return left.kind.localeCompare(right.kind);
+    }
+    return left.name.localeCompare(right.name);
+  });
+
+  return {
+    groups: mappedGroups,
+    availableLights,
+  };
 }
 
 export function mapHueLightToContract(
