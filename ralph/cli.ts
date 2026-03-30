@@ -100,8 +100,6 @@ async function runStart(config: RalphConfig, options: { dryRun: boolean }): Prom
       runCommentTriggeredIssue,
     },
   );
-
-  console.log("[Ralph] stopped.");
 }
 
 function printPlan(plan: ReturnType<typeof pollIssuePlan>): void {

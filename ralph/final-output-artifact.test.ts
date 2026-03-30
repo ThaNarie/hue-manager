@@ -4,10 +4,7 @@ import { join, resolve } from "node:path";
 
 import { afterEach, describe, expect, test } from "vite-plus/test";
 
-import {
-  extractFinalOutputFromStreamLog,
-  persistFinalOutputArtifact,
-} from "./final-output-artifact.js";
+import { persistFinalOutputArtifact } from "./final-output-artifact.js";
 
 const tempPaths: string[] = [];
 
@@ -26,27 +23,7 @@ function createTempArtifactPath(): string {
 }
 
 describe("final output artifact", () => {
-  test("extracts final markdown from completed stream-json event", () => {
-    const expected = [
-      "1. What was implemented",
-      "- Added deterministic output artifact parsing.",
-      "",
-      "2. Validation results",
-      "- vp test",
-      "",
-      "3. Any blockers or follow-up needed",
-      "- None.",
-    ].join("\n");
-    const stream = `${JSON.stringify({
-      type: "response.completed",
-      role: "assistant",
-      final_output: expected,
-    })}\n`;
-
-    expect(extractFinalOutputFromStreamLog(stream)).toBe(expected);
-  });
-
-  test("writes final-output.md from worker.log when run succeeds", () => {
+  test("writes normalized final-output.md when worker artifact exists", () => {
     const artifactPath = createTempArtifactPath();
     const expected = [
       "1. What was implemented",
@@ -60,19 +37,19 @@ describe("final output artifact", () => {
       "3. Any blockers or follow-up needed",
       "- None.",
     ].join("\n");
-    writeFileSync(
-      resolve(artifactPath, "worker.log"),
-      `${JSON.stringify({
-        type: "assistant.final",
-        role: "assistant",
-        message: { role: "assistant", content: [{ type: "output_text", text: expected }] },
-      })}\n`,
-      "utf8",
-    );
+    writeFileSync(resolve(artifactPath, "final-output.md"), expected, "utf8");
 
     const finalOutput = persistFinalOutputArtifact(artifactPath);
 
     expect(finalOutput).toBe(`${expected}\n`);
     expect(readFileSync(resolve(artifactPath, "final-output.md"), "utf8")).toBe(`${expected}\n`);
+  });
+
+  test("throws when worker did not write final-output artifact", () => {
+    const artifactPath = createTempArtifactPath();
+
+    expect(() => persistFinalOutputArtifact(artifactPath)).toThrow(
+      "worker did not write /artifacts/final-output.md",
+    );
   });
 });
