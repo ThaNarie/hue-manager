@@ -9,6 +9,7 @@ type AutomationsDashboardListProps = {
   pendingAutomationIds: string[];
   onUpdateAutomation: (automationId: string, isEnabled: boolean) => void;
   onEditAutomation: (automation: Automation) => void;
+  onEditAutomationJson: (automation: Automation) => void;
 };
 
 export function AutomationsDashboardList({
@@ -17,6 +18,7 @@ export function AutomationsDashboardList({
   pendingAutomationIds,
   onUpdateAutomation,
   onEditAutomation,
+  onEditAutomationJson,
 }: AutomationsDashboardListProps) {
   return (
     <div className="space-y-2">
@@ -56,6 +58,16 @@ export function AutomationsDashboardList({
                 disabled={pendingAutomationIds.includes(automation.id)}
               >
                 Edit guided
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onEditAutomationJson(automation);
+                }}
+                className="rounded-md border border-border px-2 py-1 text-xs text-slate-100 transition hover:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={pendingAutomationIds.includes(automation.id)}
+              >
+                Edit JSON
               </button>
             </div>
             {automationErrors[automation.id] ? (

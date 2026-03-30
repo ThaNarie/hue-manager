@@ -51,6 +51,21 @@ export type AutomationGuidedDraftField =
 
 export type AutomationGuidedDraftErrors = Partial<Record<AutomationGuidedDraftField, string>>;
 
+export type AutomationEditorVariant = "guided" | "json";
+
+export type AutomationJsonDraft = {
+  payloadText: string;
+  confirmDestructive: boolean;
+  explicitDangerousToken: string;
+};
+
+export type AutomationJsonDraftField =
+  | "payloadText"
+  | "confirmDestructive"
+  | "explicitDangerousToken";
+
+export type AutomationJsonDraftErrors = Partial<Record<AutomationJsonDraftField, string>>;
+
 export type AutomationControlErrorMap = Record<string, string>;
 
 export type AutomationsDashboardData = {
