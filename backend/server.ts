@@ -2,8 +2,11 @@ import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import {
-  OverviewHealthResponseSchema,
-} from "../shared/contracts/health.ts";
+  AutomationsResponseSchema,
+  AutomationMutationRequestSchema,
+  AutomationMutationResponseSchema,
+} from "../shared/contracts/automations.ts";
+import { OverviewHealthResponseSchema } from "../shared/contracts/health.ts";
 import {
   LightMutationRequestSchema,
   LightsResponseSchema,
@@ -14,6 +17,8 @@ import type {
   HueV1Light,
   HueV1LightsResponse,
   HueV1MutationResult,
+  HueV1Rule,
+  HueV1RulesResponse,
 } from "./server.types.ts";
 import {
   HUE_NOT_CONFIGURED_MESSAGE,
@@ -23,6 +28,7 @@ import {
   getMutationError,
   getOverviewHealth,
   mapHueLightToContract,
+  mapHueRuleToContract,
   toHueBrightness,
 } from "./server.utils.ts";
 
@@ -127,6 +133,76 @@ app.patch("/api/lights/:lightId", async (context) => {
   const groupMaps = groupsResult.ok ? buildGroupMaps(groupsResult.data) : buildGroupMaps({});
   const light = mapHueLightToContract(lightId, lightResult.data, groupMaps);
   return context.json({ light });
+});
+
+app.get("/api/automations", async (context) => {
+  const rulesResult = await fetchHueJson<HueV1RulesResponse>("/rules");
+  if (!rulesResult.ok) {
+    return context.json({ message: rulesResult.message }, rulesResult.status);
+  }
+
+  const automations = Object.entries(rulesResult.data)
+    .map(([ruleId, rule]) => mapHueRuleToContract(ruleId, rule))
+    .sort((left, right) => left.name.localeCompare(right.name));
+  const payload = AutomationsResponseSchema.parse({
+    generatedAt: new Date().toISOString(),
+    automations,
+  });
+
+  return context.json(payload);
+});
+
+app.patch("/api/automations/:automationId", async (context) => {
+  const automationId = context.req.param("automationId");
+  const body = await context.req.json().catch(() => null);
+  const parsedBody = AutomationMutationRequestSchema.safeParse(body);
+  if (!parsedBody.success) {
+    return context.json({ message: "Invalid automation mutation payload" }, 400);
+  }
+
+  const baseUrl = getHueBaseUrl();
+  if (!baseUrl) {
+    return context.json({ message: HUE_NOT_CONFIGURED_MESSAGE }, 500);
+  }
+
+  const nextStatus = parsedBody.data.isEnabled ? "enabled" : "disabled";
+  const mutationResponse = await fetch(`${baseUrl}/rules/${encodeURIComponent(automationId)}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ status: nextStatus }),
+  }).catch(() => null);
+  if (!mutationResponse) {
+    return context.json({ message: "Could not reach Hue Bridge." }, 502);
+  }
+  if (!mutationResponse.ok) {
+    return context.json(
+      { message: `Hue Bridge request failed (${mutationResponse.status}).` },
+      502,
+    );
+  }
+
+  const mutationPayload = (await mutationResponse.json().catch(() => null)) as
+    | HueV1MutationResult[]
+    | null;
+  if (!Array.isArray(mutationPayload)) {
+    return context.json({ message: "Hue Bridge returned invalid mutation response." }, 502);
+  }
+
+  const mutationError = getMutationError(mutationPayload);
+  if (mutationError) {
+    return context.json({ message: mutationError.message }, mutationError.status);
+  }
+
+  const ruleResult = await fetchHueJson<HueV1Rule>(`/rules/${encodeURIComponent(automationId)}`);
+  if (!ruleResult.ok) {
+    return context.json({ message: ruleResult.message }, ruleResult.status);
+  }
+
+  const automation = mapHueRuleToContract(automationId, ruleResult.data);
+  const payload = AutomationMutationResponseSchema.parse({ automation });
+  return context.json(payload);
 });
 
 app.notFound((context) => context.json({ message: "Not found" }, 404));

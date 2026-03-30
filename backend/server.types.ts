@@ -28,3 +28,12 @@ export type HueV1MutationResult = {
     description?: string;
   };
 };
+
+export type HueV1Rule = {
+  name?: string;
+  status?: "enabled" | "disabled";
+  owner?: string;
+  lasttriggered?: string;
+};
+
+export type HueV1RulesResponse = Record<string, HueV1Rule>;
