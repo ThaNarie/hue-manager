@@ -1,15 +1,20 @@
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { OverviewHealthResponseSchema } from "../shared/contracts/health.ts";
 import {
-  OverviewHealthResponseSchema,
-} from "../shared/contracts/health.ts";
+  GroupKindSchema,
+  GroupMutationRequestSchema,
+  GroupsResponseSchema,
+  type GroupsResponse,
+} from "../shared/contracts/groups.ts";
 import {
   LightMutationRequestSchema,
   LightsResponseSchema,
   type LightsResponse,
 } from "../shared/contracts/lights.ts";
 import type {
+  HueV1Group,
   HueV1GroupsResponse,
   HueV1Light,
   HueV1LightsResponse,
@@ -22,7 +27,9 @@ import {
   getHueBaseUrl,
   getMutationError,
   getOverviewHealth,
+  mapHueGroupsToContract,
   mapHueLightToContract,
+  toGroupKind,
   toHueBrightness,
 } from "./server.utils.ts";
 
@@ -59,6 +66,24 @@ app.get("/api/lights", async (context) => {
     lights,
   } satisfies LightsResponse);
 
+  return context.json(payload);
+});
+
+app.get("/api/groups", async (context) => {
+  const groupsResult = await fetchHueJson<HueV1GroupsResponse>("/groups");
+  if (!groupsResult.ok) {
+    return context.json({ message: groupsResult.message }, groupsResult.status);
+  }
+
+  const lightsResult = await fetchHueJson<HueV1LightsResponse>("/lights");
+  if (!lightsResult.ok) {
+    return context.json({ message: lightsResult.message }, lightsResult.status);
+  }
+
+  const payload = GroupsResponseSchema.parse({
+    generatedAt: new Date().toISOString(),
+    ...mapHueGroupsToContract(groupsResult.data, lightsResult.data),
+  } satisfies GroupsResponse);
   return context.json(payload);
 });
 
@@ -127,6 +152,92 @@ app.patch("/api/lights/:lightId", async (context) => {
   const groupMaps = groupsResult.ok ? buildGroupMaps(groupsResult.data) : buildGroupMaps({});
   const light = mapHueLightToContract(lightId, lightResult.data, groupMaps);
   return context.json({ light });
+});
+
+app.patch("/api/groups/:groupKind/:groupId", async (context) => {
+  const groupKind = context.req.param("groupKind");
+  const groupId = context.req.param("groupId");
+  const parsedGroupKind = GroupKindSchema.safeParse(groupKind);
+  if (!parsedGroupKind.success) {
+    return context.json({ message: "Invalid group kind" }, 400);
+  }
+
+  const body = await context.req.json().catch(() => null);
+  const parsedBody = GroupMutationRequestSchema.safeParse(body);
+  if (!parsedBody.success) {
+    return context.json({ message: "Invalid group mutation payload" }, 400);
+  }
+
+  const currentGroupResult = await fetchHueJson<HueV1Group>(
+    `/groups/${encodeURIComponent(groupId)}`,
+  );
+  if (!currentGroupResult.ok) {
+    return context.json({ message: currentGroupResult.message }, currentGroupResult.status);
+  }
+
+  const currentGroupKind = toGroupKind(currentGroupResult.data.type);
+  if (!currentGroupKind || currentGroupKind !== parsedGroupKind.data) {
+    return context.json({ message: "Group not found" }, 404);
+  }
+
+  const updatePayload: { name?: string; lights?: string[] } = {};
+  if (parsedBody.data.name !== undefined) {
+    updatePayload.name = parsedBody.data.name;
+  }
+  if (parsedBody.data.memberLightIds !== undefined) {
+    updatePayload.lights = parsedBody.data.memberLightIds;
+  }
+
+  const baseUrl = getHueBaseUrl();
+  if (!baseUrl) {
+    return context.json({ message: HUE_NOT_CONFIGURED_MESSAGE }, 500);
+  }
+
+  const mutationResponse = await fetch(`${baseUrl}/groups/${encodeURIComponent(groupId)}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(updatePayload),
+  }).catch(() => null);
+  if (!mutationResponse) {
+    return context.json({ message: "Could not reach Hue Bridge." }, 502);
+  }
+  if (!mutationResponse.ok) {
+    return context.json(
+      { message: `Hue Bridge request failed (${mutationResponse.status}).` },
+      502,
+    );
+  }
+
+  const mutationPayload = (await mutationResponse.json().catch(() => null)) as
+    | HueV1MutationResult[]
+    | null;
+  if (!Array.isArray(mutationPayload)) {
+    return context.json({ message: "Hue Bridge returned invalid mutation response." }, 502);
+  }
+
+  const mutationError = getMutationError(mutationPayload);
+  if (mutationError) {
+    return context.json({ message: mutationError.message }, mutationError.status);
+  }
+
+  const groupsResult = await fetchHueJson<HueV1GroupsResponse>("/groups");
+  if (!groupsResult.ok) {
+    return context.json({ message: groupsResult.message }, groupsResult.status);
+  }
+  const lightsResult = await fetchHueJson<HueV1LightsResponse>("/lights");
+  if (!lightsResult.ok) {
+    return context.json({ message: lightsResult.message }, lightsResult.status);
+  }
+  const mapped = mapHueGroupsToContract(groupsResult.data, lightsResult.data);
+  const group = mapped.groups.find(
+    (entry) => entry.kind === parsedGroupKind.data && entry.hueGroupId === groupId,
+  );
+  if (!group) {
+    return context.json({ message: "Group not found" }, 404);
+  }
+  return context.json({ group });
 });
 
 app.notFound((context) => context.json({ message: "Not found" }, 404));
