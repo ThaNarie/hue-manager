@@ -16,6 +16,7 @@ export function LightsDashboard() {
     filteredLights,
     isLoading,
     isRefreshing,
+    isBridgeOffline,
     lightErrors,
     lights,
     pendingLightIds,
@@ -58,6 +59,11 @@ export function LightsDashboard() {
             Unable to load lights: {error.message}
           </p>
         ) : null}
+        {isBridgeOffline ? (
+          <p className="rounded-md border border-amber-500/40 bg-amber-950/20 px-3 py-2 text-sm text-amber-100">
+            Bridge offline. Light write actions are disabled until reconnect.
+          </p>
+        ) : null}
 
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <p>
@@ -75,6 +81,7 @@ export function LightsDashboard() {
             lights={filteredLights}
             lightErrors={lightErrors}
             pendingLightIds={pendingLightIds}
+            writesDisabled={isBridgeOffline}
             onUpdateLight={updateLight}
           />
         )}

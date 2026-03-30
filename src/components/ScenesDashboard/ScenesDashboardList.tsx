@@ -5,6 +5,7 @@ import { DELETE_CONFIRMATION_TEXT } from "./ScenesDashboard.types";
 type ScenesDashboardListProps = {
   scenes: Scene[];
   pendingSceneIds: string[];
+  writesDisabled: boolean;
   onActivateScene: (sceneId: string) => void;
   onEditScene: (sceneId: string, name: string) => void;
   onDeleteScene: (sceneId: string) => void;
@@ -13,6 +14,7 @@ type ScenesDashboardListProps = {
 export function ScenesDashboardList({
   scenes,
   pendingSceneIds,
+  writesDisabled,
   onActivateScene,
   onEditScene,
   onDeleteScene,
@@ -25,7 +27,7 @@ export function ScenesDashboardList({
   return (
     <ul className="space-y-2">
       {scenes.map((scene) => {
-        const isPending = pendingSceneIds.includes(scene.id);
+        const isPending = writesDisabled || pendingSceneIds.includes(scene.id);
         const isEditing = editingSceneId === scene.id;
         const isConfirmingDelete = confirmDeleteSceneId === scene.id;
 

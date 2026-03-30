@@ -21,6 +21,7 @@ import {
   toGroupDraft,
   toggleDraftMember,
 } from "./GroupsDashboard.utils";
+import { useBridgeWriteGate } from "../OverviewHealthCard/OverviewHealthCard.hooks";
 
 const GROUPS_QUERY_KEY = ["groups-dashboard"] as const;
 
@@ -66,6 +67,7 @@ export function useGroupsDashboard() {
   const [pendingGroupIds, setPendingGroupIds] = useState<string[]>([]);
   const [toasts, setToasts] = useState<GroupsDashboardToast[]>([]);
   const queryClient = useQueryClient();
+  const { isBridgeOffline } = useBridgeWriteGate();
   const query = useQuery({
     queryKey: GROUPS_QUERY_KEY,
     queryFn: requestGroups,
@@ -175,6 +177,17 @@ export function useGroupsDashboard() {
   }
 
   function saveGroup(group: Group) {
+    if (isBridgeOffline) {
+      setToasts((current) => [
+        ...current,
+        {
+          id: crypto.randomUUID(),
+          message: "Bridge offline. Reconnect before saving rooms or zones.",
+        },
+      ]);
+      return;
+    }
+
     const draft = drafts[group.id];
     if (!draft) {
       return;
@@ -218,6 +231,7 @@ export function useGroupsDashboard() {
     pendingGroupIds,
     toasts,
     error: query.error,
+    isBridgeOffline,
     isLoading: query.isLoading,
     isRefreshing: query.isFetching,
     refresh: query.refetch,

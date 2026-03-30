@@ -10,6 +10,7 @@ import {
 } from "./ScenesDashboard.api";
 import type { SceneDashboardData, SceneDraft, SceneFeedbackToast } from "./ScenesDashboard.types";
 import { getInitialSceneDraft, sortScenesByName } from "./ScenesDashboard.utils";
+import { useBridgeWriteGate } from "../OverviewHealthCard/OverviewHealthCard.hooks";
 
 const SCENES_QUERY_KEY = ["scenes-dashboard"] as const;
 
@@ -22,6 +23,7 @@ export function useScenesDashboard() {
   const [pendingSceneIds, setPendingSceneIds] = useState<string[]>([]);
   const [toasts, setToasts] = useState<SceneFeedbackToast[]>([]);
   const queryClient = useQueryClient();
+  const { isBridgeOffline } = useBridgeWriteGate();
   const query = useQuery({
     queryKey: SCENES_QUERY_KEY,
     queryFn: requestScenes,
@@ -179,10 +181,32 @@ export function useScenesDashboard() {
   }, [query.data?.scenes]);
 
   function createScene() {
+    if (isBridgeOffline) {
+      setToasts((current) => [
+        ...current,
+        {
+          id: crypto.randomUUID(),
+          message: "Bridge offline. Reconnect before creating scenes.",
+          tone: "error",
+        },
+      ]);
+      return;
+    }
     createMutation.mutate(draft);
   }
 
   function editScene(sceneId: string, name: string) {
+    if (isBridgeOffline) {
+      setToasts((current) => [
+        ...current,
+        {
+          id: crypto.randomUUID(),
+          message: "Bridge offline. Reconnect before editing scenes.",
+          tone: "error",
+        },
+      ]);
+      return;
+    }
     const trimmedName = name.trim();
     if (!trimmedName) {
       setToasts((current) => [
@@ -196,10 +220,32 @@ export function useScenesDashboard() {
   }
 
   function activateScene(sceneId: string) {
+    if (isBridgeOffline) {
+      setToasts((current) => [
+        ...current,
+        {
+          id: crypto.randomUUID(),
+          message: "Bridge offline. Reconnect before activating scenes.",
+          tone: "error",
+        },
+      ]);
+      return;
+    }
     activateMutation.mutate(sceneId);
   }
 
   function deleteScene(sceneId: string) {
+    if (isBridgeOffline) {
+      setToasts((current) => [
+        ...current,
+        {
+          id: crypto.randomUUID(),
+          message: "Bridge offline. Reconnect before deleting scenes.",
+          tone: "error",
+        },
+      ]);
+      return;
+    }
     deleteMutation.mutate(sceneId);
   }
 
@@ -212,6 +258,7 @@ export function useScenesDashboard() {
     draft,
     error: query.error,
     isLoading: query.isLoading,
+    isBridgeOffline,
     isRefreshing: query.isFetching,
     pendingSceneIds,
     toasts,

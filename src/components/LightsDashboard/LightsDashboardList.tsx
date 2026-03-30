@@ -7,6 +7,7 @@ type LightsDashboardListProps = {
   lights: Light[];
   lightErrors: LightControlErrorMap;
   pendingLightIds: string[];
+  writesDisabled: boolean;
   onUpdateLight: (lightId: string, patch: { isOn?: boolean; brightness?: number }) => void;
 };
 
@@ -14,6 +15,7 @@ export function LightsDashboardList({
   lights,
   lightErrors,
   pendingLightIds,
+  writesDisabled,
   onUpdateLight,
 }: LightsDashboardListProps) {
   return (
@@ -43,7 +45,7 @@ export function LightsDashboardList({
                   onUpdateLight(light.id, { isOn: !light.isOn });
                 }}
                 className="rounded-md border border-border px-2 py-1 text-xs text-slate-100 transition hover:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={pendingLightIds.includes(light.id)}
+                disabled={writesDisabled || pendingLightIds.includes(light.id)}
               >
                 {light.isOn ? "Turn off" : "Turn on"}
               </button>
@@ -57,7 +59,7 @@ export function LightsDashboardList({
                 }}
                 className="h-1 w-full accent-slate-300"
                 aria-label={`Brightness for ${light.name}`}
-                disabled={pendingLightIds.includes(light.id)}
+                disabled={writesDisabled || pendingLightIds.includes(light.id)}
               />
             </div>
             {lightErrors[light.id] ? (
