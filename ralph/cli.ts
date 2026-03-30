@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import process from "node:process";
 
 import { loadRalphConfig } from "./config.js";
+import { runCleanup } from "./cleanup.js";
 import { getMissingSecrets, loadSecrets } from "./env.js";
 import { runGh } from "./github.js";
 import { pollIssuePlan } from "./issue-selection.js";
@@ -33,6 +34,9 @@ async function main(): Promise<void> {
     case "start":
       await runStart(config, { dryRun });
       return;
+    case "cleanup":
+      runCleanupCommand(config, { dryRun });
+      return;
     default:
       printUsage();
       process.exitCode = 1;
@@ -41,7 +45,7 @@ async function main(): Promise<void> {
 
 function printUsage(): void {
   console.log("Ralph CLI");
-  console.log("Usage: node dist/ralph/cli.js <doctor|once|start> [--dry-run]");
+  console.log("Usage: node dist/ralph/cli.js <doctor|once|start|cleanup> [--dry-run]");
 }
 
 async function runOnce(config: RalphConfig, options: { dryRun: boolean }): Promise<void> {
@@ -102,6 +106,32 @@ async function runStart(config: RalphConfig, options: { dryRun: boolean }): Prom
   );
 
   console.log("[Ralph] stopped.");
+}
+
+function runCleanupCommand(config: RalphConfig, options: { dryRun: boolean }): void {
+  const report = runCleanup({
+    retentionDays: config.cleanupRetentionDays,
+    dryRun: options.dryRun,
+  });
+
+  console.log(
+    `[Ralph cleanup] retention=${report.retentionDays}d cutoff=${report.cutoffIso} mode=${
+      report.dryRun ? "dry-run" : "live"
+    }`,
+  );
+
+  for (const action of report.actions) {
+    console.log(
+      `[Ralph cleanup] ${action.action.toUpperCase()} ${action.kind} ${action.runId} (${action.reason})`,
+    );
+  }
+
+  console.log(
+    `[Ralph cleanup] artifacts scanned=${report.artifacts.scanned} removed=${report.artifacts.removed} kept=${report.artifacts.kept}`,
+  );
+  console.log(
+    `[Ralph cleanup] worktrees scanned=${report.worktrees.scanned} removed=${report.worktrees.removed} kept=${report.worktrees.kept} keptForDiagnostics=${report.worktrees.keptForDiagnostics}`,
+  );
 }
 
 function printPlan(plan: ReturnType<typeof pollIssuePlan>): void {

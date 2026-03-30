@@ -10,6 +10,7 @@ const DEFAULT_IDLE_BACKOFF_JITTER_MS = 250;
 const DEFAULT_BASE_BRANCH = "main";
 const DEFAULT_WORKER_IMAGE = "hue-manager-ralph-worker:latest";
 const DEFAULT_WORKER_TIMEOUT_MS = 15 * 60 * 1000;
+const DEFAULT_CLEANUP_RETENTION_DAYS = 14;
 
 const DEFAULT_REQUIRED_LABELS: RalphLabelConfig[] = [
   {
@@ -92,6 +93,10 @@ export function loadRalphConfig(
   const baseBranch = validateBaseBranch(parsed.baseBranch, configPath);
   const workerImage = validateWorkerImage(parsed.workerImage, configPath);
   const workerTimeoutMs = validateWorkerTimeout(parsed.workerTimeoutMs, configPath);
+  const cleanupRetentionDays = validateCleanupRetentionDays(
+    parsed.cleanupRetentionDays,
+    configPath,
+  );
   const requiredLabels = validateLabels(parsed.requiredLabels, configPath);
 
   return {
@@ -103,6 +108,7 @@ export function loadRalphConfig(
     baseBranch,
     workerImage,
     workerTimeoutMs,
+    cleanupRetentionDays,
     requiredLabels,
   };
 }
@@ -195,6 +201,20 @@ function validateWorkerTimeout(value: unknown, configPath: string): number {
   if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
     throw new Error(
       `Invalid "workerTimeoutMs" in ${configPath}. Use a positive integer number of milliseconds.`,
+    );
+  }
+
+  return value;
+}
+
+function validateCleanupRetentionDays(value: unknown, configPath: string): number {
+  if (value === undefined) {
+    return DEFAULT_CLEANUP_RETENTION_DAYS;
+  }
+
+  if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
+    throw new Error(
+      `Invalid "cleanupRetentionDays" in ${configPath}. Use a positive integer number of days.`,
     );
   }
 

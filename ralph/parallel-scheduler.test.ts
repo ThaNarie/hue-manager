@@ -13,6 +13,7 @@ function createConfig(overrides: Partial<RalphConfig> = {}): RalphConfig {
     baseBranch: "main",
     workerImage: "image",
     workerTimeoutMs: 60_000,
+    cleanupRetentionDays: 14,
     requiredLabels: [],
     ...overrides,
   };
