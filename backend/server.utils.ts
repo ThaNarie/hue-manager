@@ -1,6 +1,16 @@
 import type { OverviewHealthResponse } from "../shared/contracts/health.ts";
+import type { AutomationsResponse } from "../shared/contracts/automations.ts";
+import type { Group, GroupKind, GroupMember, GroupsResponse } from "../shared/contracts/groups.ts";
 import type { LightGroup, LightType, LightsResponse } from "../shared/contracts/lights.ts";
-import type { HueV1GroupsResponse, HueV1Light, HueV1MutationResult } from "./server.types.ts";
+import type { ScenesResponse } from "../shared/contracts/scenes.ts";
+import type {
+  HueV1GroupsResponse,
+  HueV1Light,
+  HueV1Scene,
+  HueV1LightsResponse,
+  HueV1MutationResult,
+  HueV1Rule,
+} from "./server.types.ts";
 
 const hueHost = process.env.HUE_HOST;
 const huePath = process.env.HUE_PATH;
@@ -94,6 +104,19 @@ function parseLastUpdated(input: string | undefined): string {
   return parsed.toISOString();
 }
 
+function parseHueLastUpdated(input: string | undefined): string {
+  if (!input) {
+    return new Date().toISOString();
+  }
+
+  const normalized = /z$/i.test(input) ? input : `${input}Z`;
+  const parsed = new Date(normalized);
+  if (Number.isNaN(parsed.getTime())) {
+    return new Date().toISOString();
+  }
+  return parsed.toISOString();
+}
+
 export function buildGroupMaps(groups: HueV1GroupsResponse) {
   const roomsByLightId: Record<string, LightGroup> = {};
   const zonesByLightId: Record<string, LightGroup> = {};
@@ -119,6 +142,61 @@ export function buildGroupMaps(groups: HueV1GroupsResponse) {
   return { roomsByLightId, zonesByLightId };
 }
 
+export function toGroupKind(value: string | undefined): GroupKind | null {
+  if (value === "Room" || value === "room") {
+    return "room";
+  }
+  if (value === "Zone" || value === "zone") {
+    return "zone";
+  }
+  return null;
+}
+
+export function mapHueGroupsToContract(
+  groups: HueV1GroupsResponse,
+  lights: HueV1LightsResponse,
+): Pick<GroupsResponse, "groups" | "availableLights"> {
+  const availableLights: GroupMember[] = Object.entries(lights)
+    .map(([lightId, light]) => ({
+      id: lightId,
+      name: light.name ?? `Light ${lightId}`,
+    }))
+    .sort((left, right) => left.name.localeCompare(right.name));
+  const lightsById = new Map(availableLights.map((light) => [light.id, light]));
+  const mappedGroups: Group[] = [];
+
+  for (const [groupId, group] of Object.entries(groups)) {
+    const kind = toGroupKind(group.type);
+    if (!kind) {
+      continue;
+    }
+    const memberLightIds = Array.isArray(group.lights) ? [...group.lights] : [];
+    const members = memberLightIds
+      .map((lightId) => lightsById.get(lightId))
+      .filter((member): member is GroupMember => Boolean(member));
+    mappedGroups.push({
+      id: `${kind}-${groupId}`,
+      hueGroupId: groupId,
+      kind,
+      name: group.name ?? `${kind}-${groupId}`,
+      memberLightIds,
+      members,
+    });
+  }
+
+  mappedGroups.sort((left, right) => {
+    if (left.kind !== right.kind) {
+      return left.kind.localeCompare(right.kind);
+    }
+    return left.name.localeCompare(right.name);
+  });
+
+  return {
+    groups: mappedGroups,
+    availableLights,
+  };
+}
+
 export function mapHueLightToContract(
   lightId: string,
   light: HueV1Light,
@@ -134,6 +212,44 @@ export function mapHueLightToContract(
     isOn,
     brightness: fromHueBrightness(light.state?.bri, isOn),
     lastUpdatedAt: parseLastUpdated(light.state?.lastupdated),
+  };
+}
+
+function parseHueRuleTimestamp(input: string | undefined): string | null {
+  if (!input || input === "none") {
+    return null;
+  }
+  const parsed = new Date(input);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+  return parsed.toISOString();
+}
+
+export function mapHueRuleToContract(
+  ruleId: string,
+  rule: HueV1Rule,
+): AutomationsResponse["automations"][number] {
+  const status = rule.status === "disabled" ? "disabled" : "enabled";
+  return {
+    id: ruleId,
+    name: rule.name?.trim() ? rule.name : `Rule ${ruleId}`,
+    status,
+    isEnabled: status === "enabled",
+    owner: rule.owner?.trim() ? rule.owner : null,
+    lastTriggeredAt: parseHueRuleTimestamp(rule.lasttriggered),
+  };
+}
+export function mapHueSceneToContract(
+  sceneId: string,
+  scene: HueV1Scene,
+): ScenesResponse["scenes"][number] {
+  return {
+    id: sceneId,
+    name: scene.name ?? `Scene ${sceneId}`,
+    groupId: scene.group ?? null,
+    isLocked: Boolean(scene.locked),
+    lastUpdatedAt: parseHueLastUpdated(scene.lastupdated),
   };
 }
 
@@ -169,4 +285,18 @@ export function getMutationError(
     message: firstError.description ?? "Hue Bridge rejected the mutation.",
     status: firstError.type === 3 ? 404 : 502,
   };
+}
+
+export function getCreatedResourceId(mutationPayload: HueV1MutationResult[]): string | null {
+  for (const entry of mutationPayload) {
+    if (!entry.success) {
+      continue;
+    }
+    const candidate = (entry.success.id ?? "") as string;
+    if (typeof candidate === "string" && candidate.length > 0) {
+      return candidate;
+    }
+  }
+
+  return null;
 }

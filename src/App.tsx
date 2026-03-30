@@ -1,6 +1,9 @@
 import { AuditActivity } from "./components/AuditActivity/AuditActivity";
+import { GroupsDashboard } from "./components/GroupsDashboard/GroupsDashboard";
+import { AutomationsDashboard } from "./components/AutomationsDashboard/AutomationsDashboard";
 import { OverviewHealthCard } from "./components/OverviewHealthCard/OverviewHealthCard";
 import { LightsDashboard } from "./components/LightsDashboard/LightsDashboard";
+import { ScenesDashboard } from "./components/ScenesDashboard/ScenesDashboard";
 
 export function App() {
   return (
@@ -15,8 +18,11 @@ export function App() {
       </header>
 
       <OverviewHealthCard />
+      <AutomationsDashboard />
       <LightsDashboard />
       <AuditActivity />
+      <ScenesDashboard />
+      <GroupsDashboard />
     </main>
   );
 }
