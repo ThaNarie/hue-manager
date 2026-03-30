@@ -42,6 +42,7 @@ For each claimed issue, Ralph performs this sequence:
 6. Pushes the branch and either:
    - reuses an existing open PR for that branch, or
    - creates a new PR targeting `baseBranch`.
+7. Removes the ephemeral Ralph worktree after publish succeeds.
 
 Run artifacts are written under `.ralph/artifacts/<runId>/` and now include:
 
