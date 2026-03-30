@@ -20,6 +20,7 @@ import type {
   HueV1LightsResponse,
   HueV1MutationResult,
 } from "./server.types.ts";
+import { registerSceneRoutes } from "./server.scenes.ts";
 import {
   HUE_NOT_CONFIGURED_MESSAGE,
   buildGroupMaps,
@@ -239,6 +240,8 @@ app.patch("/api/groups/:groupKind/:groupId", async (context) => {
   }
   return context.json({ group });
 });
+
+registerSceneRoutes(app);
 
 app.notFound((context) => context.json({ message: "Not found" }, 404));
 
