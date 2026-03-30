@@ -43,7 +43,13 @@ For each claimed issue, Ralph performs this sequence:
    - reuses an existing open PR for that branch, or
    - creates a new PR targeting `baseBranch`.
 
-Run artifacts are written under `.ralph/artifacts/<runId>/` (logs, manifest, prompt, and publish metadata).
+Run artifacts are written under `.ralph/artifacts/<runId>/` and now include:
+
+- `worker.log` plus `worker.stdout.log`/`worker.stderr.log` for stream/debug visibility.
+- `final-output.md` with the worker's final structured response.
+- `run-manifest.json`, `cursor-prompt.md`, `result.json`, `cleanup.json`, and `publish.json`.
+
+PR output now embeds the `final-output.md` content so reviewers can quickly inspect what Ralph implemented.
 
 ## Recommended worker image
 

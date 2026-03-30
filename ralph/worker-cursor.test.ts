@@ -41,5 +41,7 @@ describe("renderCursorPrompt", () => {
     expect(prompt).toContain("- #20");
     expect(prompt).toContain("Required validation commands (run from /workspace):");
     expect(prompt).toContain("1. What was implemented");
+    expect(prompt).toContain("Final response rules:");
+    expect(prompt).toContain("Output markdown only (no preamble).");
   });
 });

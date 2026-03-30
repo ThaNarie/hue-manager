@@ -80,6 +80,12 @@ export function renderCursorPrompt(
     "1. What was implemented",
     "2. Validation results",
     "3. Any blockers or follow-up needed",
+    "",
+    "Final response rules:",
+    "- Output markdown only (no preamble).",
+    "- Include all three headings exactly once, in the exact order shown above.",
+    "- Under each heading, provide concrete bullets with file paths/commands/results.",
+    "- Before finishing, write the exact same markdown to /artifacts/final-output.md.",
   ].join("\n");
 }
 

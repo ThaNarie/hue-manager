@@ -72,6 +72,7 @@ export function pushAndOpenOrReusePr(
   issueBranch: string,
   issueTitle: string,
   worktreePath: string,
+  finalOutput: string,
   runCommand: CommandRunner,
   runOrThrow: RunOrThrow,
 ): string {
@@ -85,8 +86,11 @@ export function pushAndOpenOrReusePr(
 
   const existingPr = findExistingOpenPr(input.repo, issueBranch, runCommand);
   if (existingPr) {
+    commentOnPr(input.repo, existingPr, buildPrComment(input.runId, finalOutput), runCommand);
     return existingPr;
   }
+
+  const prBody = buildPrBody(input.issueNumber, input.runId, finalOutput);
 
   const prCreateResult = runCommand(
     "gh",
@@ -102,7 +106,7 @@ export function pushAndOpenOrReusePr(
       "--title",
       `Ralph: #${input.issueNumber} ${issueTitle}`,
       "--body",
-      `Automated Ralph run ${input.runId}.\n\nCloses #${input.issueNumber}`,
+      prBody,
     ],
     {},
   );
@@ -113,6 +117,41 @@ export function pushAndOpenOrReusePr(
     throw new Error(`failed to create pull request: ${prCreateResult.stderr.trim()}`);
   }
   return prCreateResult.stdout.trim();
+}
+
+function buildPrBody(issueNumber: number, runId: string, finalOutput: string): string {
+  return [
+    `Automated Ralph run ${runId}.`,
+    "",
+    `Closes #${issueNumber}`,
+    "",
+    "## Ralph final output",
+    "",
+    truncateForGitHub(finalOutput),
+    "",
+    `Artifact: \`.ralph/artifacts/${runId}/final-output.md\``,
+  ].join("\n");
+}
+
+function buildPrComment(runId: string, finalOutput: string): string {
+  return [
+    `Ralph rerun summary for \`${runId}\`:`,
+    "",
+    "## Ralph final output",
+    "",
+    truncateForGitHub(finalOutput),
+    "",
+    `Artifact: \`.ralph/artifacts/${runId}/final-output.md\``,
+  ].join("\n");
+}
+
+function truncateForGitHub(markdown: string): string {
+  const normalized = markdown.trim();
+  const maxLength = 6500;
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+  return `${normalized.slice(0, maxLength).trimEnd()}\n\n_(truncated for PR output; full text in artifact)_`;
 }
 
 function hasGitChangesStaged(worktreePath: string, runCommand: CommandRunner): boolean {
@@ -148,6 +187,21 @@ function findExistingOpenPr(
   const payload = JSON.parse(result.stdout) as Array<{ url?: string }>;
   const existing = payload.find((entry) => typeof entry.url === "string" && entry.url.length > 0);
   return existing?.url;
+}
+
+function commentOnPr(
+  repo: string,
+  prReference: string,
+  body: string,
+  runCommand: CommandRunner,
+): void {
+  runOrThrowLocal(
+    runCommand,
+    "gh",
+    ["pr", "comment", prReference, "--repo", repo, "--body", body],
+    {},
+    "failed to publish final output summary comment",
+  );
 }
 
 function runOrThrowLocal(

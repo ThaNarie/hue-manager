@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -63,6 +63,20 @@ describe("executeIssueWork", () => {
     const worktreePath = resolve(repoRoot, ".ralph/worktrees", runId);
     const artifactPath = resolve(repoRoot, ".ralph/artifacts", runId);
     const containerName = "ralph-issue-000025-run-0001";
+    const finalOutput = [
+      "1. What was implemented",
+      "- Added worker final artifact persistence.",
+      "",
+      "2. Validation results",
+      "- vp run build",
+      "- vp test",
+      "- vp check --fix",
+      "",
+      "3. Any blockers or follow-up needed",
+      "- None.",
+    ].join("\n");
+    mkdirSync(artifactPath, { recursive: true });
+    writeFileSync(resolve(artifactPath, "final-output.md"), finalOutput, "utf8");
 
     const { invocations, run } = createRunner({
       "gh issue view 25 --repo thanarie/hue-manager --json number,title,body": {
@@ -89,7 +103,12 @@ describe("executeIssueWork", () => {
         stdout: "[]",
         stderr: "",
       },
-      "gh pr create --repo thanarie/hue-manager --base main --head ralph/issue-000025 --title Ralph: #25 Test issue title --body Automated Ralph run issue-000025-run-0001.\n\nCloses #25":
+      "docker run *": {
+        status: 0,
+        stdout: "worker completed successfully\n",
+        stderr: "",
+      },
+      [`gh pr create --repo thanarie/hue-manager --base main --head ralph/issue-000025 --title Ralph: #25 Test issue title --body Automated Ralph run issue-000025-run-0001.\n\nCloses #25\n\n## Ralph final output\n\n${finalOutput}\n\nArtifact: \`.ralph/artifacts/issue-000025-run-0001/final-output.md\``]:
         {
           status: 0,
           stdout: "https://github.com/thanarie/hue-manager/pull/100\n",
@@ -139,11 +158,17 @@ describe("executeIssueWork", () => {
     expect(commands).toContain(`git -C ${worktreePath} commit -m chore(ralph): implement #25`);
     expect(commands).toContain(`git -C ${worktreePath} push -u origin ralph/issue-000025`);
 
-    expect(readFileSync(resolve(artifactPath, "worker.stdout.log"), "utf8")).toBe("");
+    expect(readFileSync(resolve(artifactPath, "worker.stdout.log"), "utf8")).toContain(
+      "worker completed",
+    );
     expect(readFileSync(resolve(artifactPath, "worker.stderr.log"), "utf8")).toBe("");
     expect(readFileSync(resolve(artifactPath, "cursor-prompt.md"), "utf8")).toContain(
       "Test issue title",
     );
+    expect(readFileSync(resolve(artifactPath, "cursor-prompt.md"), "utf8")).toContain(
+      "write the exact same markdown to /artifacts/final-output.md",
+    );
+    expect(readFileSync(resolve(artifactPath, "final-output.md"), "utf8")).toBe(`${finalOutput}\n`);
     expect(JSON.parse(readFileSync(resolve(artifactPath, "result.json"), "utf8"))).toEqual({
       status: "succeeded",
       completedAt: expect.any(String),

@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { resolve, sep } from "node:path";
 
+import { persistFinalOutputArtifact } from "./final-output-artifact.js";
 import { getCursorWorkerScript, getIssueContext, renderCursorPrompt } from "./worker-cursor.js";
 import { commitFinalChanges, pushAndOpenOrReusePr, runQualityChecks } from "./worker-publish.js";
 
@@ -134,6 +135,7 @@ export function executeIssueWork(
     resolve(artifactPath, "result.json"),
     JSON.stringify({ status: "succeeded", completedAt: new Date().toISOString() }),
   );
+  const finalOutput = persistFinalOutputArtifact(artifactPath);
 
   runQualityChecks(worktreePath, runCommand);
   const commitSha = commitFinalChanges(input.issueNumber, worktreePath, runCommand);
@@ -142,6 +144,7 @@ export function executeIssueWork(
     issueBranch,
     issueContext.title,
     worktreePath,
+    finalOutput,
     runCommand,
     runOrThrow,
   );

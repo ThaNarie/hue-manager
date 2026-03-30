@@ -104,8 +104,6 @@ async function runStart(config: RalphConfig, options: { dryRun: boolean }): Prom
       runCommentTriggeredIssue,
     },
   );
-
-  console.log("[Ralph] stopped.");
 }
 
 function runCleanupCommand(config: RalphConfig, options: { dryRun: boolean }): void {
