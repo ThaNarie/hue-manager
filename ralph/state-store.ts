@@ -210,6 +210,40 @@ export class RalphStateStore {
     };
   }
 
+  listRunAttemptsByStatus(status: RunStatus): RunAttempt[] {
+    const rows = this.db
+      .prepare(
+        `
+          SELECT
+            run_id,
+            issue_number,
+            attempt,
+            trigger_type,
+            trigger_comment_id,
+            status,
+            created_at,
+            updated_at,
+            failure_reason
+          FROM run_attempts
+          WHERE status = ?
+          ORDER BY created_at ASC
+        `,
+      )
+      .all(status) as RunAttemptRow[];
+
+    return rows.map((row) => ({
+      runId: row.run_id,
+      issueNumber: row.issue_number,
+      attempt: row.attempt,
+      triggerType: row.trigger_type,
+      triggerCommentId: row.trigger_comment_id,
+      status: row.status,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      failureReason: row.failure_reason,
+    }));
+  }
+
   private nextAttemptNumber(issueNumber: number): number {
     const row = this.db
       .prepare(

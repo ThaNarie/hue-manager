@@ -7,6 +7,7 @@ import { runGh } from "./github.js";
 import { pollIssuePlan } from "./issue-selection.js";
 import { runEligibleIssue } from "./issue-runner.js";
 import { runParallelScheduler } from "./parallel-scheduler.js";
+import { reconcileStartupRuns } from "./startup-reconciliation.js";
 import type { RalphConfig } from "./types.js";
 
 type ToolCheck = {
@@ -44,6 +45,11 @@ function printUsage(): void {
 
 async function runOnce(config: RalphConfig, options: { dryRun: boolean }): Promise<void> {
   loadSecrets();
+  if (options.dryRun) {
+    console.log("[Ralph] dry-run: skipping startup reconciliation.");
+  } else {
+    reconcileStartupRuns(config);
+  }
 
   const plan = pollIssuePlan(config.repo);
   const mode = options.dryRun ? "dry-run" : "live";
@@ -63,6 +69,11 @@ async function runOnce(config: RalphConfig, options: { dryRun: boolean }): Promi
 
 async function runStart(config: RalphConfig, options: { dryRun: boolean }): Promise<void> {
   loadSecrets();
+  if (options.dryRun) {
+    console.log("[Ralph] dry-run: skipping startup reconciliation.");
+  } else {
+    reconcileStartupRuns(config);
+  }
 
   console.log(`[Ralph] start: running every ${config.loopIntervalMs}ms for ${config.repo}`);
   console.log("[Ralph] Press Ctrl+C to stop.");
