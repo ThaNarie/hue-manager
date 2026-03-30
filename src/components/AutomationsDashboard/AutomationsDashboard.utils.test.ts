@@ -6,7 +6,10 @@ import {
   formatAutomationTriggeredAt,
   getInitialAutomationFilters,
   matchesAutomationSearchQuery,
+  parseSavedAutomationViews,
+  removeSavedAutomationView,
   replaceAutomationById,
+  upsertSavedAutomationView,
 } from "./AutomationsDashboard.utils";
 
 const AUTOMATION_FIXTURES: Automation[] = [
@@ -91,5 +94,37 @@ describe("AutomationsDashboard.utils", () => {
     const updated = replaceAutomationById(AUTOMATION_FIXTURES, replacement);
     expect(updated.find((automation) => automation.id === "9")?.owner).toBe("bridge");
     expect(updated.find((automation) => automation.id === "4")?.owner).toBe("hue-app");
+  });
+
+  test("parses saved automation views from storage payload", () => {
+    const parsed = parseSavedAutomationViews(
+      JSON.stringify([
+        {
+          name: "Disabled only",
+          filters: {
+            searchQuery: "",
+            status: "disabled",
+            sort: "name-asc",
+          },
+        },
+      ]),
+    );
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0]?.filters.status).toBe("disabled");
+  });
+
+  test("upserts and removes saved automation views by name", () => {
+    const first = upsertSavedAutomationView([], {
+      name: "Ops",
+      filters: { ...getInitialAutomationFilters(), status: "enabled" },
+    });
+    const second = upsertSavedAutomationView(first, {
+      name: "ops",
+      filters: { ...getInitialAutomationFilters(), status: "disabled" },
+    });
+
+    expect(second).toHaveLength(1);
+    expect(second[0]?.filters.status).toBe("disabled");
+    expect(removeSavedAutomationView(second, "Ops")).toHaveLength(0);
   });
 });

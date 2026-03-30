@@ -26,6 +26,7 @@ import {
   getInitialLightFilters,
   replaceLightById,
 } from "./LightsDashboard.utils";
+import { useLightSavedViews } from "./LightsDashboard.savedViews";
 import { useBridgeWriteGate } from "../OverviewHealthCard/OverviewHealthCard.hooks";
 
 const LIGHTS_QUERY_KEY = ["lights-dashboard"] as const;
@@ -79,6 +80,9 @@ async function requestLightMutation(input: LightMutationInput) {
 
 export function useLightsDashboard() {
   const [filters, setFilters] = useState<LightFilters>(getInitialLightFilters);
+  const savedViewsState = useLightSavedViews(filters, (nextFilters) => {
+    setFilters(nextFilters);
+  });
   const [lightErrors, setLightErrors] = useState<LightControlErrorMap>({});
   const [pendingLightIds, setPendingLightIds] = useState<string[]>([]);
   const [pendingSafetyConfirmation, setPendingSafetyConfirmation] =
@@ -237,12 +241,22 @@ export function useLightsDashboard() {
     mutation.mutate({ lightId, patch, approval: null });
   }
 
+  function bulkTurnOnFilteredLights() {
+    data.filteredLights.forEach((light) => {
+      if (!light.isOn) {
+        updateLight(light.id, { isOn: true });
+      }
+    });
+  }
+
   function dismissToast(toastId: string) {
     setToasts((current) => current.filter((toast) => toast.id !== toastId));
   }
 
   return {
     ...data,
+    bulkTurnOnFilteredLights,
+    ...savedViewsState,
     dismissToast,
     filters,
     isLoading: query.isLoading,

@@ -17,14 +17,19 @@ import type {
   AutomationMutationInput,
   AutomationsDashboardData,
   AutomationsToast,
+  SavedAutomationView,
 } from "./AutomationsDashboard.types";
 import {
+  AUTOMATION_SAVED_VIEWS_STORAGE_KEY,
   applyOptimisticAutomationPatch,
   filterAndSortAutomations,
   getGuidedDraftFromAutomation,
   getInitialAutomationFilters,
-  getInitialAutomationGuidedDraft,
+  parseSavedAutomationViews,
+  removeSavedAutomationView,
   replaceAutomationById,
+  upsertSavedAutomationView,
+  getInitialAutomationGuidedDraft,
   validateAutomationGuidedDraft,
 } from "./AutomationsDashboard.utils";
 import { useBridgeWriteGate } from "../OverviewHealthCard/OverviewHealthCard.hooks";
@@ -33,6 +38,16 @@ const AUTOMATIONS_QUERY_KEY = ["automations-dashboard"] as const;
 
 export function useAutomationsDashboard() {
   const [filters, setFilters] = useState<AutomationFilters>(getInitialAutomationFilters);
+  const [savedViews, setSavedViews] = useState<SavedAutomationView[]>(() => {
+    if (typeof window === "undefined") {
+      return [];
+    }
+    return parseSavedAutomationViews(
+      window.localStorage.getItem(AUTOMATION_SAVED_VIEWS_STORAGE_KEY),
+    );
+  });
+  const [savedViewDraftName, setSavedViewDraftName] = useState("");
+  const [selectedSavedViewName, setSelectedSavedViewName] = useState("");
   const [automationErrors, setAutomationErrors] = useState<AutomationControlErrorMap>({});
   const [pendingAutomationIds, setPendingAutomationIds] = useState<string[]>([]);
   const [toasts, setToasts] = useState<AutomationsToast[]>([]);
@@ -192,6 +207,45 @@ export function useAutomationsDashboard() {
     }));
   }
 
+  function persistSavedViews(nextViews: SavedAutomationView[]) {
+    setSavedViews(nextViews);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(AUTOMATION_SAVED_VIEWS_STORAGE_KEY, JSON.stringify(nextViews));
+    }
+  }
+
+  function saveCurrentView() {
+    const nextName = savedViewDraftName.trim();
+    if (!nextName) {
+      return;
+    }
+
+    const nextViews = upsertSavedAutomationView(savedViews, { name: nextName, filters });
+    persistSavedViews(nextViews);
+    setSavedViewDraftName("");
+    setSelectedSavedViewName(nextName);
+  }
+
+  function applySelectedSavedView() {
+    if (!selectedSavedViewName) {
+      return;
+    }
+    const selectedView = savedViews.find((view) => view.name === selectedSavedViewName);
+    if (!selectedView) {
+      return;
+    }
+    setFilters({ ...selectedView.filters });
+  }
+
+  function deleteSelectedSavedView() {
+    if (!selectedSavedViewName) {
+      return;
+    }
+    const nextViews = removeSavedAutomationView(savedViews, selectedSavedViewName);
+    persistSavedViews(nextViews);
+    setSelectedSavedViewName("");
+  }
+
   function updateAutomation(automationId: string, isEnabled: boolean) {
     if (isBridgeOffline) {
       setToasts((current) => [
@@ -322,6 +376,14 @@ export function useAutomationsDashboard() {
     });
   }
 
+  function bulkEnableFilteredAutomations() {
+    data.filteredAutomations.forEach((automation) => {
+      if (!automation.isEnabled) {
+        updateAutomation(automation.id, true);
+      }
+    });
+  }
+
   function dismissToast(toastId: string) {
     setToasts((current) => current.filter((toast) => toast.id !== toastId));
   }
@@ -354,6 +416,7 @@ export function useAutomationsDashboard() {
   return {
     ...data,
     automationErrors,
+    bulkEnableFilteredAutomations,
     dismissToast,
     filters,
     guidedMode,
@@ -364,6 +427,10 @@ export function useAutomationsDashboard() {
     isRefreshing: query.isFetching,
     isSavingGuidedAutomation: mutation.isPending || createMutation.isPending,
     pendingAutomationIds,
+    saveCurrentView,
+    savedViewDraftName,
+    savedViews,
+    selectedSavedViewName,
     error: query.error,
     onCancelGuidedEdit,
     onSubmitGuidedAutomation,
@@ -374,5 +441,9 @@ export function useAutomationsDashboard() {
     toasts,
     updateAutomation,
     updateFilters,
+    applySelectedSavedView,
+    deleteSelectedSavedView,
+    setSavedViewDraftName,
+    setSelectedSavedViewName,
   };
 }

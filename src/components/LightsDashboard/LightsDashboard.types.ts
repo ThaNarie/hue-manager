@@ -19,6 +19,11 @@ export type LightFilters = {
   sort: LightSortOption;
 };
 
+export type SavedLightView = {
+  name: string;
+  filters: LightFilters;
+};
+
 export type LightFilterOption = {
   value: string;
   label: string;
