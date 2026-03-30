@@ -3,9 +3,12 @@ import type { LightMutationRequest } from "../../../shared/contracts/lights";
 import {
   type LightFilterOption,
   type LightFilters,
+  type SavedLightView,
   type LightSortOption,
   UNASSIGNED_ZONE_FILTER,
 } from "./LightsDashboard.types";
+
+export const LIGHT_SAVED_VIEWS_STORAGE_KEY = "hue-manager:lights:saved-views";
 
 export const LIGHT_SORT_OPTIONS: Array<{ value: LightSortOption; label: string }> = [
   { value: "name-asc", label: "Name (A-Z)" },
@@ -23,6 +26,69 @@ export function getInitialLightFilters(): LightFilters {
     zoneId: "",
     sort: "name-asc",
   };
+}
+
+export function parseSavedLightViews(rawValue: string | null): SavedLightView[] {
+  if (!rawValue) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(rawValue);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed
+      .filter((candidate): candidate is SavedLightView => {
+        if (!candidate || typeof candidate !== "object") {
+          return false;
+        }
+        const view = candidate as Partial<SavedLightView>;
+        return (
+          typeof view.name === "string" &&
+          typeof view.filters?.searchQuery === "string" &&
+          typeof view.filters?.roomId === "string" &&
+          typeof view.filters?.zoneId === "string" &&
+          typeof view.filters?.sort === "string"
+        );
+      })
+      .map((view) => ({
+        name: view.name,
+        filters: { ...view.filters },
+      }));
+  } catch {
+    return [];
+  }
+}
+
+export function upsertSavedLightView(
+  views: SavedLightView[],
+  nextView: SavedLightView,
+): SavedLightView[] {
+  const nextName = nextView.name.trim();
+  if (!nextName) {
+    return views;
+  }
+
+  const normalizedName = nextName.toLowerCase();
+  const remainingViews = views.filter((view) => view.name.toLowerCase() !== normalizedName);
+  return [
+    ...remainingViews,
+    {
+      name: nextName,
+      filters: { ...nextView.filters },
+    },
+  ];
+}
+
+export function removeSavedLightView(views: SavedLightView[], viewName: string): SavedLightView[] {
+  const normalizedName = viewName.trim().toLowerCase();
+  if (!normalizedName) {
+    return views;
+  }
+
+  return views.filter((view) => view.name.toLowerCase() !== normalizedName);
 }
 
 export function buildRoomOptions(lights: Light[]): LightFilterOption[] {

@@ -7,6 +7,7 @@ type AutomationsDashboardListProps = {
   automations: Automation[];
   automationErrors: AutomationControlErrorMap;
   pendingAutomationIds: string[];
+  writesDisabled: boolean;
   onUpdateAutomation: (automationId: string, isEnabled: boolean) => void;
   onEditAutomation: (automation: Automation) => void;
   onEditAutomationJson: (automation: Automation) => void;
@@ -16,6 +17,7 @@ export function AutomationsDashboardList({
   automations,
   automationErrors,
   pendingAutomationIds,
+  writesDisabled,
   onUpdateAutomation,
   onEditAutomation,
   onEditAutomationJson,
@@ -45,7 +47,7 @@ export function AutomationsDashboardList({
                   onUpdateAutomation(automation.id, !automation.isEnabled);
                 }}
                 className="rounded-md border border-border px-2 py-1 text-xs text-slate-100 transition hover:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={pendingAutomationIds.includes(automation.id)}
+                disabled={writesDisabled || pendingAutomationIds.includes(automation.id)}
               >
                 {automation.isEnabled ? "Disable" : "Enable"}
               </button>
@@ -55,7 +57,7 @@ export function AutomationsDashboardList({
                   onEditAutomation(automation);
                 }}
                 className="rounded-md border border-border px-2 py-1 text-xs text-slate-100 transition hover:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={pendingAutomationIds.includes(automation.id)}
+                disabled={writesDisabled || pendingAutomationIds.includes(automation.id)}
               >
                 Edit guided
               </button>

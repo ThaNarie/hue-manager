@@ -26,6 +26,8 @@ import {
   getInitialLightFilters,
   replaceLightById,
 } from "./LightsDashboard.utils";
+import { useLightSavedViews } from "./LightsDashboard.savedViews";
+import { useBridgeWriteGate } from "../OverviewHealthCard/OverviewHealthCard.hooks";
 
 const LIGHTS_QUERY_KEY = ["lights-dashboard"] as const;
 const DESTRUCTIVE_CONFIRM_WINDOW_MS = 8_000;
@@ -78,12 +80,16 @@ async function requestLightMutation(input: LightMutationInput) {
 
 export function useLightsDashboard() {
   const [filters, setFilters] = useState<LightFilters>(getInitialLightFilters);
+  const savedViewsState = useLightSavedViews(filters, (nextFilters) => {
+    setFilters(nextFilters);
+  });
   const [lightErrors, setLightErrors] = useState<LightControlErrorMap>({});
   const [pendingLightIds, setPendingLightIds] = useState<string[]>([]);
   const [pendingSafetyConfirmation, setPendingSafetyConfirmation] =
     useState<PendingSafetyConfirmation | null>(null);
   const [toasts, setToasts] = useState<DashboardToast[]>([]);
   const queryClient = useQueryClient();
+  const { isBridgeOffline } = useBridgeWriteGate();
   const query = useQuery({
     queryKey: LIGHTS_QUERY_KEY,
     queryFn: requestLights,
@@ -182,6 +188,17 @@ export function useLightsDashboard() {
   }
 
   function updateLight(lightId: string, patch: LightMutationInput["patch"]) {
+    if (isBridgeOffline) {
+      setToasts((current) => [
+        ...current,
+        {
+          id: crypto.randomUUID(),
+          message: "Bridge offline. Reconnect before sending light updates.",
+        },
+      ]);
+      return;
+    }
+
     const now = Date.now();
     const requiredAction = getLightMutationSafetyAction(patch);
 
@@ -224,16 +241,27 @@ export function useLightsDashboard() {
     mutation.mutate({ lightId, patch, approval: null });
   }
 
+  function bulkTurnOnFilteredLights() {
+    data.filteredLights.forEach((light) => {
+      if (!light.isOn) {
+        updateLight(light.id, { isOn: true });
+      }
+    });
+  }
+
   function dismissToast(toastId: string) {
     setToasts((current) => current.filter((toast) => toast.id !== toastId));
   }
 
   return {
     ...data,
+    bulkTurnOnFilteredLights,
+    ...savedViewsState,
     dismissToast,
     filters,
     isLoading: query.isLoading,
     lightErrors,
+    isBridgeOffline,
     pendingLightIds,
     isRefreshing: query.isFetching,
     error: query.error,

@@ -8,8 +8,18 @@ import { useOverviewHealthCard } from "./OverviewHealthCard.hooks";
 import { formatDate, statusToBadgeVariant } from "./OverviewHealthCard.utils";
 
 export function OverviewHealthCard() {
-  const { error, hasData, health, isLoading, isRefreshing, pollMs, refresh } =
-    useOverviewHealthCard();
+  const {
+    error,
+    hasData,
+    health,
+    isBridgeOffline,
+    isLoading,
+    isRefreshing,
+    isStale,
+    lastFreshAt,
+    pollMs,
+    refresh,
+  } = useOverviewHealthCard();
 
   if (error && !hasData) {
     return (
@@ -91,6 +101,7 @@ export function OverviewHealthCard() {
               <span className="text-sm text-slate-200">
                 {health.bridge.connected ? "Connected" : "Disconnected"}
               </span>
+              {isStale ? <Badge variant="down">stale</Badge> : null}
             </div>
           </div>
           <div className="rounded-md border border-border bg-card/60 p-3">
@@ -104,6 +115,13 @@ export function OverviewHealthCard() {
             </div>
           </div>
         </div>
+        {isBridgeOffline ? (
+          <p className="rounded-md border border-amber-500/40 bg-amber-950/20 px-3 py-2 text-xs text-amber-100">
+            Bridge unavailable. Showing last known state from{" "}
+            {lastFreshAt ? formatDate(lastFreshAt) : "an unknown time"}. Auto-retrying every{" "}
+            {pollMs / 1000}s; use Refresh to retry now.
+          </p>
+        ) : null}
         <p className="text-xs text-muted-foreground">
           Last successful sync {formatDate(health.sync.lastRunAt)} • Updated{" "}
           {formatDate(health.generatedAt)} • Polling every {pollMs / 1000}s • Contract validated via

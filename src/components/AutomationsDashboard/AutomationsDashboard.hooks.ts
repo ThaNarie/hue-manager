@@ -15,25 +15,41 @@ import type {
   AutomationFilters,
   AutomationMutationInput,
   AutomationsToast,
+  SavedAutomationView,
 } from "./AutomationsDashboard.types";
 import {
+  AUTOMATION_SAVED_VIEWS_STORAGE_KEY,
   applyOptimisticAutomationPatch,
   filterAndSortAutomations,
   getInitialAutomationFilters,
+  parseSavedAutomationViews,
+  removeSavedAutomationView,
   replaceAutomationById,
+  upsertSavedAutomationView,
 } from "./AutomationsDashboard.utils";
 import { useAutomationsDashboardEditorState } from "./AutomationsDashboardEditor.hooks";
+import { useBridgeWriteGate } from "../OverviewHealthCard/OverviewHealthCard.hooks";
 
 const AUTOMATIONS_QUERY_KEY = ["automations-dashboard"] as const;
 
 export function useAutomationsDashboard() {
   const [filters, setFilters] = useState<AutomationFilters>(getInitialAutomationFilters);
+  const [savedViews, setSavedViews] = useState<SavedAutomationView[]>(() => {
+    if (typeof window === "undefined") {
+      return [];
+    }
+    return parseSavedAutomationViews(
+      window.localStorage.getItem(AUTOMATION_SAVED_VIEWS_STORAGE_KEY),
+    );
+  });
+  const [savedViewDraftName, setSavedViewDraftName] = useState("");
+  const [selectedSavedViewName, setSelectedSavedViewName] = useState("");
   const [automationErrors, setAutomationErrors] = useState<AutomationControlErrorMap>({});
   const [pendingAutomationIds, setPendingAutomationIds] = useState<string[]>([]);
   const [toasts, setToasts] = useState<AutomationsToast[]>([]);
   const editorState = useAutomationsDashboardEditorState();
   const queryClient = useQueryClient();
-
+  const { isBridgeOffline } = useBridgeWriteGate();
   const query = useQuery({
     queryKey: AUTOMATIONS_QUERY_KEY,
     queryFn: requestAutomations,
@@ -147,7 +163,56 @@ export function useAutomationsDashboard() {
     setFilters((current) => ({ ...current, ...nextPartial }));
   }
 
+  function persistSavedViews(nextViews: SavedAutomationView[]) {
+    setSavedViews(nextViews);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(AUTOMATION_SAVED_VIEWS_STORAGE_KEY, JSON.stringify(nextViews));
+    }
+  }
+
+  function saveCurrentView() {
+    const nextName = savedViewDraftName.trim();
+    if (!nextName) {
+      return;
+    }
+
+    const nextViews = upsertSavedAutomationView(savedViews, { name: nextName, filters });
+    persistSavedViews(nextViews);
+    setSavedViewDraftName("");
+    setSelectedSavedViewName(nextName);
+  }
+
+  function applySelectedSavedView() {
+    if (!selectedSavedViewName) {
+      return;
+    }
+    const selectedView = savedViews.find((view) => view.name === selectedSavedViewName);
+    if (!selectedView) {
+      return;
+    }
+    setFilters({ ...selectedView.filters });
+  }
+
+  function deleteSelectedSavedView() {
+    if (!selectedSavedViewName) {
+      return;
+    }
+    const nextViews = removeSavedAutomationView(savedViews, selectedSavedViewName);
+    persistSavedViews(nextViews);
+    setSelectedSavedViewName("");
+  }
+
   function updateAutomation(automationId: string, isEnabled: boolean) {
+    if (isBridgeOffline) {
+      setToasts((current) => [
+        ...current,
+        {
+          id: crypto.randomUUID(),
+          message: "Bridge offline. Reconnect before updating automations.",
+        },
+      ]);
+      return;
+    }
     const patch = { isEnabled };
     const requiredAction = getAutomationMutationSafetyAction(patch);
     if (requiredAction === "confirm") {
@@ -228,11 +293,21 @@ export function useAutomationsDashboard() {
   }
 
   const automations = query.data?.automations ?? [];
+  const filteredAutomations = filterAndSortAutomations(automations, filters);
+
+  function bulkEnableFilteredAutomations() {
+    filteredAutomations.forEach((automation) => {
+      if (!automation.isEnabled) {
+        updateAutomation(automation.id, true);
+      }
+    });
+  }
 
   return {
     automations,
-    filteredAutomations: filterAndSortAutomations(automations, filters),
+    filteredAutomations,
     automationErrors,
+    bulkEnableFilteredAutomations,
     dismissToast,
     editorVariant: editorState.editorVariant,
     error: query.error,
@@ -241,15 +316,20 @@ export function useAutomationsDashboard() {
     guidedDraftErrors: editorState.guidedDraftErrors,
     guidedMode: editorState.guidedMode,
     isLoading: query.isLoading,
+    isBridgeOffline,
     isRefreshing: query.isFetching,
     isSavingGuidedAutomation: mutation.isPending || createMutation.isPending,
     jsonApiError: editorState.jsonApiError,
     jsonDraft: editorState.jsonDraft,
     jsonDraftErrors: editorState.jsonDraftErrors,
+    pendingAutomationIds,
+    saveCurrentView,
+    savedViewDraftName,
+    savedViews,
+    selectedSavedViewName,
     onCancelGuidedEdit,
     onSubmitGuidedAutomation,
     onSubmitJsonAutomation,
-    pendingAutomationIds,
     refresh: query.refetch,
     requiredGuidedSafetyAction: editorState.requiredGuidedSafetyAction,
     requiredJsonSafetyAction: editorState.requiredJsonSafetyAction,
@@ -261,5 +341,9 @@ export function useAutomationsDashboard() {
     toasts,
     updateAutomation,
     updateFilters,
+    applySelectedSavedView,
+    deleteSelectedSavedView,
+    setSavedViewDraftName,
+    setSelectedSavedViewName,
   };
 }
