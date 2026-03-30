@@ -1,5 +1,6 @@
 import type { Light } from "../../../shared/contracts/lights";
 import type { LightMutationRequest } from "../../../shared/contracts/lights";
+import type { LightMutationSafetyApproval } from "../../../shared/safety/lightMutationSafetyPolicy";
 
 export const UNASSIGNED_ZONE_FILTER = "__unassigned__";
 
@@ -33,6 +34,7 @@ export type LightsDashboardData = {
 export type LightMutationInput = {
   lightId: string;
   patch: LightMutationRequest;
+  approval: LightMutationSafetyApproval | null;
 };
 
 export type LightControlErrorMap = Record<string, string>;
