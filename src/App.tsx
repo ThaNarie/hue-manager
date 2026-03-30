@@ -1,3 +1,4 @@
+import { AuditActivity } from "./components/AuditActivity/AuditActivity";
 import { GroupsDashboard } from "./components/GroupsDashboard/GroupsDashboard";
 import { AutomationsDashboard } from "./components/AutomationsDashboard/AutomationsDashboard";
 import { OverviewHealthCard } from "./components/OverviewHealthCard/OverviewHealthCard";
@@ -12,13 +13,15 @@ export function App() {
           Hue Manager Overview
         </h1>
         <p className="text-muted-foreground">
-          Tracer bullet: React frontend + Hono backend + shared Zod contract validation.
+          Tracer bullet: React frontend + Hono backend + shared Zod contract
+          validation.
         </p>
       </header>
 
       <OverviewHealthCard />
       <AutomationsDashboard />
       <LightsDashboard />
+      <AuditActivity />
       <ScenesDashboard />
       <GroupsDashboard />
     </main>
