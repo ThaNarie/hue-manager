@@ -231,6 +231,46 @@ export function mapHueRuleToContract(
   rule: HueV1Rule,
 ): AutomationsResponse["automations"][number] {
   const status = rule.status === "disabled" ? "disabled" : "enabled";
+  const conditions = Array.isArray(rule.conditions)
+    ? rule.conditions
+        .filter(
+          (condition): condition is { address: string; operator: string; value: string } =>
+            typeof condition.address === "string" &&
+            condition.address.length > 0 &&
+            typeof condition.operator === "string" &&
+            condition.operator.length > 0 &&
+            typeof condition.value === "string" &&
+            condition.value.length > 0,
+        )
+        .map((condition) => ({
+          address: condition.address,
+          operator: condition.operator,
+          value: condition.value,
+        }))
+    : [];
+  const actions = Array.isArray(rule.actions)
+    ? rule.actions
+        .filter(
+          (
+            action,
+          ): action is {
+            address: string;
+            method: "PUT" | "POST" | "DELETE";
+            body: Record<string, unknown>;
+          } =>
+            typeof action.address === "string" &&
+            action.address.length > 0 &&
+            (action.method === "PUT" || action.method === "POST" || action.method === "DELETE") &&
+            typeof action.body === "object" &&
+            action.body !== null &&
+            !Array.isArray(action.body),
+        )
+        .map((action) => ({
+          address: action.address,
+          method: action.method,
+          body: action.body,
+        }))
+    : [];
   return {
     id: ruleId,
     name: rule.name?.trim() ? rule.name : `Rule ${ruleId}`,
@@ -238,6 +278,8 @@ export function mapHueRuleToContract(
     isEnabled: status === "enabled",
     owner: rule.owner?.trim() ? rule.owner : null,
     lastTriggeredAt: parseHueRuleTimestamp(rule.lasttriggered),
+    conditions,
+    actions,
   };
 }
 export function mapHueSceneToContract(

@@ -3,6 +3,7 @@ import { CardContent } from "../ui/Card/CardContent";
 import { CardHeader } from "../ui/Card/CardHeader";
 import { CardTitle } from "../ui/Card/CardTitle";
 import { useAutomationsDashboard } from "./AutomationsDashboard.hooks";
+import { AutomationsDashboardEditor } from "./AutomationsDashboardEditor";
 import { AutomationsDashboardFilters } from "./AutomationsDashboardFilters";
 import { AutomationsDashboardList } from "./AutomationsDashboardList";
 import { AutomationsDashboardToasts } from "./AutomationsDashboardToasts";
@@ -16,10 +17,19 @@ export function AutomationsDashboard() {
     filters,
     filteredAutomations,
     isLoading,
+    isSavingGuidedAutomation,
     isRefreshing,
+    guidedMode,
+    onCancelGuidedEdit,
+    onSubmitGuidedAutomation,
+    requiredGuidedSafetyAction,
+    guidedDraft,
+    guidedDraftErrors,
     pendingAutomationIds,
     refresh,
+    setGuidedDraft,
     toasts,
+    startGuidedEdit,
     updateAutomation,
     updateFilters,
   } = useAutomationsDashboard();
@@ -43,6 +53,17 @@ export function AutomationsDashboard() {
       </CardHeader>
 
       <CardContent className="space-y-4">
+        <AutomationsDashboardEditor
+          draft={guidedDraft}
+          errors={guidedDraftErrors}
+          mode={guidedMode}
+          pending={isSavingGuidedAutomation}
+          requiredSafetyAction={requiredGuidedSafetyAction}
+          onDraftChange={setGuidedDraft}
+          onSubmit={onSubmitGuidedAutomation}
+          onCancelEdit={onCancelGuidedEdit}
+        />
+
         <AutomationsDashboardFilters filters={filters} onUpdateFilters={updateFilters} />
 
         {error ? (
@@ -67,6 +88,7 @@ export function AutomationsDashboard() {
             automationErrors={automationErrors}
             pendingAutomationIds={pendingAutomationIds}
             onUpdateAutomation={updateAutomation}
+            onEditAutomation={startGuidedEdit}
           />
         )}
       </CardContent>
