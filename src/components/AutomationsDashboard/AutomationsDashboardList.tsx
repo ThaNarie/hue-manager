@@ -8,6 +8,7 @@ type AutomationsDashboardListProps = {
   automationErrors: AutomationControlErrorMap;
   pendingAutomationIds: string[];
   onUpdateAutomation: (automationId: string, isEnabled: boolean) => void;
+  onEditAutomation: (automation: Automation) => void;
 };
 
 export function AutomationsDashboardList({
@@ -15,6 +16,7 @@ export function AutomationsDashboardList({
   automationErrors,
   pendingAutomationIds,
   onUpdateAutomation,
+  onEditAutomation,
 }: AutomationsDashboardListProps) {
   return (
     <div className="space-y-2">
@@ -34,16 +36,28 @@ export function AutomationsDashboardList({
           </div>
 
           <div className="text-xs text-muted-foreground">
-            <button
-              type="button"
-              onClick={() => {
-                onUpdateAutomation(automation.id, !automation.isEnabled);
-              }}
-              className="rounded-md border border-border px-2 py-1 text-xs text-slate-100 transition hover:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={pendingAutomationIds.includes(automation.id)}
-            >
-              {automation.isEnabled ? "Disable" : "Enable"}
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  onUpdateAutomation(automation.id, !automation.isEnabled);
+                }}
+                className="rounded-md border border-border px-2 py-1 text-xs text-slate-100 transition hover:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={pendingAutomationIds.includes(automation.id)}
+              >
+                {automation.isEnabled ? "Disable" : "Enable"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onEditAutomation(automation);
+                }}
+                className="rounded-md border border-border px-2 py-1 text-xs text-slate-100 transition hover:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={pendingAutomationIds.includes(automation.id)}
+              >
+                Edit guided
+              </button>
+            </div>
             {automationErrors[automation.id] ? (
               <p className="mt-2 rounded-md border border-red-500/40 bg-red-950/20 px-2 py-1 text-xs text-red-200">
                 Update failed: {automationErrors[automation.id]}

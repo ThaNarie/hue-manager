@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vite-plus/test";
 import {
+  parseAutomationCreateRequest,
   parseAutomationMutationRequest,
   parseAutomationsResponse,
 } from "../../shared/contracts/automations";
@@ -16,6 +17,20 @@ describe("automations contract", () => {
           isEnabled: true,
           owner: "rest-api",
           lastTriggeredAt: "2026-03-29T06:00:00.000Z",
+          conditions: [
+            {
+              address: "/sensors/1/state/status",
+              operator: "eq",
+              value: "1",
+            },
+          ],
+          actions: [
+            {
+              address: "/groups/0/action",
+              method: "PUT",
+              body: { on: true },
+            },
+          ],
         },
       ],
     });
@@ -35,10 +50,22 @@ describe("automations contract", () => {
           isEnabled: false,
           owner: null,
           lastTriggeredAt: null,
+          conditions: [],
+          actions: [],
         },
       ],
     });
     expect(parsed.automations[0].owner).toBeNull();
+  });
+
+  test("parses valid create payload", () => {
+    const parsed = parseAutomationCreateRequest({
+      name: "Movie rule",
+      isEnabled: true,
+      conditions: [{ address: "/sensors/1/state/status", operator: "eq", value: "1" }],
+      actions: [{ address: "/groups/0/action", method: "PUT", body: { on: true } }],
+    });
+    expect(parsed.actions[0].method).toBe("PUT");
   });
 
   test("rejects invalid mutation payload", () => {
