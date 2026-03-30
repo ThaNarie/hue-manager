@@ -1,4 +1,5 @@
 import type { OverviewHealthResponse } from "../shared/contracts/health.ts";
+import type { AutomationsResponse } from "../shared/contracts/automations.ts";
 import type { Group, GroupKind, GroupMember, GroupsResponse } from "../shared/contracts/groups.ts";
 import type { LightGroup, LightType, LightsResponse } from "../shared/contracts/lights.ts";
 import type { ScenesResponse } from "../shared/contracts/scenes.ts";
@@ -8,6 +9,7 @@ import type {
   HueV1Scene,
   HueV1LightsResponse,
   HueV1MutationResult,
+  HueV1Rule,
 } from "./server.types.ts";
 
 const hueHost = process.env.HUE_HOST;
@@ -213,6 +215,31 @@ export function mapHueLightToContract(
   };
 }
 
+function parseHueRuleTimestamp(input: string | undefined): string | null {
+  if (!input || input === "none") {
+    return null;
+  }
+  const parsed = new Date(input);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+  return parsed.toISOString();
+}
+
+export function mapHueRuleToContract(
+  ruleId: string,
+  rule: HueV1Rule,
+): AutomationsResponse["automations"][number] {
+  const status = rule.status === "disabled" ? "disabled" : "enabled";
+  return {
+    id: ruleId,
+    name: rule.name?.trim() ? rule.name : `Rule ${ruleId}`,
+    status,
+    isEnabled: status === "enabled",
+    owner: rule.owner?.trim() ? rule.owner : null,
+    lastTriggeredAt: parseHueRuleTimestamp(rule.lasttriggered),
+  };
+}
 export function mapHueSceneToContract(
   sceneId: string,
   scene: HueV1Scene,
