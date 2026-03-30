@@ -13,6 +13,7 @@ export function GroupsDashboard() {
     groupErrors,
     groups,
     hasChanges,
+    isBridgeOffline,
     isLoading,
     isRefreshing,
     pendingGroupIds,
@@ -48,6 +49,11 @@ export function GroupsDashboard() {
             Unable to load rooms/zones: {error.message}
           </p>
         ) : null}
+        {isBridgeOffline ? (
+          <p className="rounded-md border border-amber-500/40 bg-amber-950/20 px-3 py-2 text-sm text-amber-100">
+            Bridge offline. Room and zone write actions are disabled until reconnect.
+          </p>
+        ) : null}
 
         <p className="text-xs text-muted-foreground">
           {groups.length} groups and {availableLights.length} lights available for membership edits
@@ -63,7 +69,11 @@ export function GroupsDashboard() {
               const draft = drafts[group.id];
               const hasPending = pendingGroupIds.includes(group.id);
               const isSaveDisabled =
-                hasPending || !draft || !hasChanges(group) || draft.name.trim().length === 0;
+                isBridgeOffline ||
+                hasPending ||
+                !draft ||
+                !hasChanges(group) ||
+                draft.name.trim().length === 0;
               return (
                 <div key={group.id} className="space-y-3 rounded-md border border-border p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
@@ -82,7 +92,7 @@ export function GroupsDashboard() {
                         updateGroupName(group.id, event.target.value);
                       }}
                       className="w-full rounded-md border border-border bg-slate-900/70 px-3 py-2 text-sm text-slate-100 outline-none transition focus-visible:border-slate-500"
-                      disabled={hasPending}
+                      disabled={isBridgeOffline || hasPending}
                     />
                   </label>
 
@@ -100,7 +110,7 @@ export function GroupsDashboard() {
                             onChange={() => {
                               toggleGroupMembership(group.id, light.id);
                             }}
-                            disabled={hasPending}
+                            disabled={isBridgeOffline || hasPending}
                           />
                           <span>{light.name}</span>
                         </label>

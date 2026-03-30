@@ -27,6 +27,7 @@ import {
   replaceAutomationById,
   validateAutomationGuidedDraft,
 } from "./AutomationsDashboard.utils";
+import { useBridgeWriteGate } from "../OverviewHealthCard/OverviewHealthCard.hooks";
 
 const AUTOMATIONS_QUERY_KEY = ["automations-dashboard"] as const;
 
@@ -40,6 +41,7 @@ export function useAutomationsDashboard() {
   const [guidedDraft, setGuidedDraftState] = useState(getInitialAutomationGuidedDraft);
   const [guidedDraftErrors, setGuidedDraftErrors] = useState<AutomationGuidedDraftErrors>({});
   const queryClient = useQueryClient();
+  const { isBridgeOffline } = useBridgeWriteGate();
   const query = useQuery({
     queryKey: AUTOMATIONS_QUERY_KEY,
     queryFn: requestAutomations,
@@ -191,6 +193,16 @@ export function useAutomationsDashboard() {
   }
 
   function updateAutomation(automationId: string, isEnabled: boolean) {
+    if (isBridgeOffline) {
+      setToasts((current) => [
+        ...current,
+        {
+          id: crypto.randomUUID(),
+          message: "Bridge offline. Reconnect before updating automations.",
+        },
+      ]);
+      return;
+    }
     const patch = { isEnabled };
     const requiredAction = getAutomationMutationSafetyAction(patch);
     if (requiredAction === "confirm") {
@@ -348,6 +360,7 @@ export function useAutomationsDashboard() {
     guidedDraft,
     guidedDraftErrors,
     isLoading: query.isLoading,
+    isBridgeOffline,
     isRefreshing: query.isFetching,
     isSavingGuidedAutomation: mutation.isPending || createMutation.isPending,
     pendingAutomationIds,

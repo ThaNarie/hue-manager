@@ -16,6 +16,7 @@ export function AutomationsDashboard() {
     error,
     filters,
     filteredAutomations,
+    isBridgeOffline,
     isLoading,
     isSavingGuidedAutomation,
     isRefreshing,
@@ -71,6 +72,11 @@ export function AutomationsDashboard() {
             Unable to load automations: {error.message}
           </p>
         ) : null}
+        {isBridgeOffline ? (
+          <p className="rounded-md border border-amber-500/40 bg-amber-950/20 px-3 py-2 text-sm text-amber-100">
+            Bridge offline. Automation write actions are disabled until reconnect.
+          </p>
+        ) : null}
 
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <p>
@@ -87,6 +93,7 @@ export function AutomationsDashboard() {
             automations={filteredAutomations}
             automationErrors={automationErrors}
             pendingAutomationIds={pendingAutomationIds}
+            writesDisabled={isBridgeOffline}
             onUpdateAutomation={updateAutomation}
             onEditAutomation={startGuidedEdit}
           />
