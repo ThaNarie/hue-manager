@@ -1,4 +1,5 @@
 import type { Light } from "../../../shared/contracts/lights";
+import type { LightMutationRequest } from "../../../shared/contracts/lights";
 
 export const UNASSIGNED_ZONE_FILTER = "__unassigned__";
 
@@ -27,4 +28,16 @@ export type LightsDashboardData = {
   filteredLights: Light[];
   roomOptions: LightFilterOption[];
   zoneOptions: LightFilterOption[];
+};
+
+export type LightMutationInput = {
+  lightId: string;
+  patch: LightMutationRequest;
+};
+
+export type LightControlErrorMap = Record<string, string>;
+
+export type DashboardToast = {
+  id: string;
+  message: string;
 };

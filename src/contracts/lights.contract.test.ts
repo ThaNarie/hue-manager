@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vite-plus/test";
-import { parseLightsResponse } from "../../shared/contracts/lights";
+import { parseLightMutationRequest, parseLightsResponse } from "../../shared/contracts/lights";
 
 describe("lights contract", () => {
   test("parses a valid lights response", () => {
@@ -41,5 +41,14 @@ describe("lights contract", () => {
         ],
       }),
     ).toThrowError();
+  });
+
+  test("accepts light mutation payloads with safe fields", () => {
+    const parsed = parseLightMutationRequest({ isOn: false, brightness: 0 });
+    expect(parsed.isOn).toBe(false);
+  });
+
+  test("rejects empty light mutation payloads", () => {
+    expect(() => parseLightMutationRequest({})).toThrowError();
   });
 });

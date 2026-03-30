@@ -18,6 +18,7 @@ const config: RalphConfig = {
   baseBranch: "main",
   workerImage: "hue-manager-ralph-worker:latest",
   workerTimeoutMs: 900_000,
+  cleanupRetentionDays: 14,
   requiredLabels: [],
 };
 

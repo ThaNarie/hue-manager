@@ -1,4 +1,5 @@
 import type { Light } from "../../../shared/contracts/lights";
+import type { LightMutationRequest } from "../../../shared/contracts/lights";
 import {
   type LightFilterOption,
   type LightFilters,
@@ -126,4 +127,31 @@ export function filterAndSortLights(lights: Light[], filters: LightFilters): Lig
 
 export function formatLightUpdatedAt(dateIsoString: string): string {
   return new Date(dateIsoString).toLocaleTimeString();
+}
+
+export function applyOptimisticLightPatch(
+  lights: Light[],
+  lightId: string,
+  patch: LightMutationRequest,
+): Light[] {
+  return lights.map((light) => {
+    if (light.id !== lightId) {
+      return light;
+    }
+
+    const nextIsOn =
+      patch.isOn ?? (patch.brightness !== undefined ? patch.brightness > 0 : light.isOn);
+    const nextBrightness = !nextIsOn ? 0 : (patch.brightness ?? light.brightness);
+
+    return {
+      ...light,
+      isOn: nextIsOn,
+      brightness: nextBrightness,
+      lastUpdatedAt: new Date().toISOString(),
+    };
+  });
+}
+
+export function replaceLightById(lights: Light[], nextLight: Light): Light[] {
+  return lights.map((light) => (light.id === nextLight.id ? nextLight : light));
 }

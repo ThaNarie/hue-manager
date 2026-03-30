@@ -1,12 +1,14 @@
 import { describe, expect, test } from "vite-plus/test";
 import type { Light } from "../../../shared/contracts/lights";
 import {
+  applyOptimisticLightPatch,
   buildRoomOptions,
   buildZoneOptions,
   filterAndSortLights,
   formatLightUpdatedAt,
   getInitialLightFilters,
   matchesSearchQuery,
+  replaceLightById,
 } from "./LightsDashboard.utils";
 import { UNASSIGNED_ZONE_FILTER } from "./LightsDashboard.types";
 
@@ -101,5 +103,26 @@ describe("LightsDashboard.utils", () => {
 
   test("formats timestamp for UI display", () => {
     expect(formatLightUpdatedAt("2026-03-28T10:00:00.000Z")).not.toHaveLength(0);
+  });
+
+  test("applies optimistic toggle updates immediately", () => {
+    const updatedLights = applyOptimisticLightPatch(LIGHT_FIXTURES, "b2", { isOn: true });
+    expect(updatedLights.find((light) => light.id === "b2")?.isOn).toBe(true);
+  });
+
+  test("forces brightness to zero when optimistically toggled off", () => {
+    const updatedLights = applyOptimisticLightPatch(LIGHT_FIXTURES, "a1", { isOn: false });
+    expect(updatedLights.find((light) => light.id === "a1")?.brightness).toBe(0);
+  });
+
+  test("replaces a single light by id from mutation response", () => {
+    const replacement = {
+      ...LIGHT_FIXTURES[0],
+      brightness: 12,
+      lastUpdatedAt: "2026-03-28T12:00:00.000Z",
+    };
+    const updatedLights = replaceLightById(LIGHT_FIXTURES, replacement);
+    expect(updatedLights.find((light) => light.id === "a1")?.brightness).toBe(12);
+    expect(updatedLights.find((light) => light.id === "b2")?.brightness).toBe(0);
   });
 });

@@ -6,6 +6,7 @@ import {
   type OverviewHealthResponse,
 } from "../shared/contracts/health.ts";
 import {
+  LightMutationRequestSchema,
   LightsResponseSchema,
   type Light,
   type LightsResponse,
@@ -15,6 +16,7 @@ const host = process.env.API_HOST ?? "127.0.0.1";
 const port = Number(process.env.API_PORT ?? "8787");
 
 const app = new Hono();
+let mockLights = getMockLights();
 
 app.use("/api/*", cors());
 
@@ -168,7 +170,7 @@ function getMockLights(): Light[] {
 function getLightsResponse(): LightsResponse {
   return {
     generatedAt: new Date().toISOString(),
-    lights: getMockLights(),
+    lights: mockLights,
   };
 }
 
@@ -180,6 +182,35 @@ app.get("/api/health", (context) => {
 app.get("/api/lights", (context) => {
   const payload = LightsResponseSchema.parse(getLightsResponse());
   return context.json(payload);
+});
+
+app.patch("/api/lights/:lightId", async (context) => {
+  const lightId = context.req.param("lightId");
+  const body = await context.req.json().catch(() => null);
+  const parsedBody = LightMutationRequestSchema.safeParse(body);
+  if (!parsedBody.success) {
+    return context.json({ message: "Invalid light mutation payload" }, 400);
+  }
+
+  const lightIndex = mockLights.findIndex((light) => light.id === lightId);
+  if (lightIndex === -1) {
+    return context.json({ message: `Unknown light (${lightId})` }, 404);
+  }
+
+  const currentLight = mockLights[lightIndex];
+  const nextIsOn =
+    parsedBody.data.isOn ??
+    (parsedBody.data.brightness !== undefined ? parsedBody.data.brightness > 0 : currentLight.isOn);
+  const nextBrightness = !nextIsOn ? 0 : (parsedBody.data.brightness ?? currentLight.brightness);
+  const nextLight: Light = {
+    ...currentLight,
+    isOn: nextIsOn,
+    brightness: nextBrightness,
+    lastUpdatedAt: new Date().toISOString(),
+  };
+
+  mockLights = mockLights.map((light) => (light.id === lightId ? nextLight : light));
+  return context.json({ light: nextLight });
 });
 
 app.notFound((context) => context.json({ message: "Not found" }, 404));
