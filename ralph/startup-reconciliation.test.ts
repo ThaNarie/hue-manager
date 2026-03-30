@@ -37,9 +37,18 @@ function createStore(): RalphStateStore {
 describe("reconcileStartupRuns", () => {
   test("marks orphaned running runs as failed and transitions issues to ai:failed", () => {
     const store = createStore();
-    const orphanedStopped = store.createRunAttempt({ issueNumber: 23, triggerType: "poll" });
-    const orphanedMissing = store.createRunAttempt({ issueNumber: 24, triggerType: "poll" });
-    const active = store.createRunAttempt({ issueNumber: 25, triggerType: "poll" });
+    const orphanedStopped = store.createRunAttempt({
+      issueNumber: 23,
+      triggerType: "poll",
+    });
+    const orphanedMissing = store.createRunAttempt({
+      issueNumber: 24,
+      triggerType: "poll",
+    });
+    const active = store.createRunAttempt({
+      issueNumber: 25,
+      triggerType: "poll",
+    });
     store.updateRunStatus(orphanedStopped.runId, "running");
     store.updateRunStatus(orphanedMissing.runId, "running");
     store.updateRunStatus(active.runId, "running");
@@ -49,7 +58,10 @@ describe("reconcileStartupRuns", () => {
       stateStore: store,
       getContainerSnapshot: () => ({
         running: new Set([`ralph-${active.runId}`]),
-        all: new Set([`ralph-${active.runId}`, `ralph-${orphanedStopped.runId}`]),
+        all: new Set([
+          `ralph-${active.runId}`,
+          `ralph-${orphanedStopped.runId}`,
+        ]),
       }),
       transitionIssueLifecycleLabel: (_repo, issueNumber, label) => {
         transitions.push({ issueNumber, label });
@@ -77,7 +89,10 @@ describe("reconcileStartupRuns", () => {
 
   test("does nothing when no runs are in-progress", () => {
     const store = createStore();
-    const completed = store.createRunAttempt({ issueNumber: 29, triggerType: "poll" });
+    const completed = store.createRunAttempt({
+      issueNumber: 29,
+      triggerType: "poll",
+    });
     store.updateRunStatus(completed.runId, "succeeded");
 
     let transitionCalls = 0;
