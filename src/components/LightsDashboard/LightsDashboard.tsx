@@ -5,18 +5,24 @@ import { CardTitle } from "../ui/Card/CardTitle";
 import { LightsDashboardFilters } from "./LightsDashboardFilters";
 import { useLightsDashboard } from "./LightsDashboard.hooks";
 import { LightsDashboardList } from "./LightsDashboardList";
+import { LightsDashboardToasts } from "./LightsDashboardToasts";
 import { UNASSIGNED_ZONE_FILTER } from "./LightsDashboard.types";
 
 export function LightsDashboard() {
   const {
+    dismissToast,
     error,
     filters,
     filteredLights,
     isLoading,
     isRefreshing,
+    lightErrors,
     lights,
+    pendingLightIds,
     refresh,
     roomOptions,
+    toasts,
+    updateLight,
     updateFilters,
     zoneOptions,
   } = useLightsDashboard();
@@ -65,9 +71,15 @@ export function LightsDashboard() {
         ) : filteredLights.length === 0 ? (
           <p className="text-sm text-muted-foreground">No lights matched your filters.</p>
         ) : (
-          <LightsDashboardList lights={filteredLights} />
+          <LightsDashboardList
+            lights={filteredLights}
+            lightErrors={lightErrors}
+            pendingLightIds={pendingLightIds}
+            onUpdateLight={updateLight}
+          />
         )}
       </CardContent>
+      <LightsDashboardToasts toasts={toasts} onDismissToast={dismissToast} />
     </Card>
   );
 }

@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "dev:frontend": "vp dev",
-    "dev:backend": "node --experimental-strip-types backend/server.ts",
+    "dev:backend": "node --env-file=.env --experimental-strip-types backend/server.ts",
     "build": "tsc && vp build",
     "preview": "vp preview",
     "ralph:build": "tsc -p tsconfig.ralph.json",
